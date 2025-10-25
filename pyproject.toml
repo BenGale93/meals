@@ -1,0 +1,86 @@
+[project]
+name = "meals"
+description = "For managing household meal plans."
+version = "0.1.0"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.119.0",
+    "fasthx[htmy]>=3.0.1",
+    "pydantic-yaml>=1.6.0",
+    "sqlalchemy>=2.0.44",
+]
+license = "MIT"
+authors = [{ name = "Benjamin Askew-Gale" }]
+
+[dependency-groups]
+dev = [
+    { include-group = "lint" },
+    { include-group = "test" },
+    { include-group = "typing" },
+]
+lint = ["ruff>=0.14.1"]
+test = ["pytest>=8.4.1", "pytest-randomly>=4.0.1", "pytest-cov>=7.0.0"]
+typing = ["mypy>=1.18.2"]
+typing-test = [{ include-group = "test" }, { include-group = "typing" }]
+
+[project.scripts]
+
+[build-system]
+requires = ["uv_build>=0.9.4,<0.10.0"]
+build-backend = "uv_build"
+
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["COM812", "ISC001", "ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore all directories named `tests`.
+"tests/**" = ["D", "S", "ANN"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+exclude = "build"
+plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "meals.*"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+strict = true
+disallow_untyped_calls = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_subclassing_any = false
+
+[tool.coverage.report]
+exclude_also = [
+    "if t.TYPE_CHECKING",
+    "@t.overload",
+    "@abstractmethod",
+    "if TYPE_CHECKING",
+]
+show_missing = true
+
+[tool.coverage.run]
+branch = true
+
+[tool.pytest.ini_options]
+addopts = "--cov=src/ --cov-report="
+filterwarnings = [
+    "ignore::DeprecationWarning::",         # ignore deprecations from all modules
+    "default::DeprecationWarning:meals.*:", # except from mymodule
+]
