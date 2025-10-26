@@ -2,14 +2,11 @@
 
 import typing as t
 
-from htmy import Component, Context, component, html
 from pydantic import AliasPath, BaseModel, ConfigDict, Field, RootModel, model_validator
 
 
-class Ingredient(BaseModel):
-    """An ingredient found in a recipe."""
-
-    model_config = ConfigDict(from_attributes=True, validate_by_alias=True, validate_by_name=True)
+class CreateIngredientRequest(BaseModel):
+    model_config = ConfigDict(validate_by_alias=True, validate_by_name=True)
 
     name: str = Field(validation_alias=AliasPath("ingredient", "name"))
     quantity: float
@@ -30,42 +27,44 @@ class Ingredient(BaseModel):
             "unit": unit,
         }
 
+
+class IngredientResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    pk: int
+    name: str = Field(validation_alias=AliasPath("ingredient", "name"))
+    quantity: float
+    unit: str
+
     def __str__(self) -> str:
         """The description of the ingredient."""
         return f"{self.name} {self.quantity} {self.unit}"
 
 
-class Recipe(BaseModel):
-    """A recipe with the required instructions and ingredients."""
-
-    model_config = ConfigDict(from_attributes=True)
-
+class CreateRecipeRequest(BaseModel):
     name: str
-    ingredients: list[Ingredient]
+    ingredients: list[CreateIngredientRequest]
     instructions: str
 
 
-@component
-async def recipe_div(recipe: Recipe, context: Context) -> Component:  # noqa: ARG001
-    """A Div representing a recipe."""
-    return html.div(
-        html.h1(recipe.name, class_="font-bold text-[20px]"),
-        html.ul(*[html.li(str(i)) for i in recipe.ingredients], class_="m-3"),
-        html.p(recipe.instructions, style="white-space:pre-line;"),
-        class_="m-5",
-    )
+class RecipeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    pk: int
+    name: str
+    ingredients: list[IngredientResponse]
+    instructions: str
 
 
-class Recipes(RootModel[list[Recipe]]):
+class CreateRecipes(RootModel[list[CreateRecipeRequest]]):
+    def __iter__(self) -> t.Iterator[CreateRecipeRequest]:  # type: ignore [override]  # noqa: D105
+        return iter(self.root)
+
+
+class Recipes(RootModel[list[RecipeResponse]]):
     """A list of recipes."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    def __iter__(self) -> t.Iterator[Recipe]:  # type: ignore [override]  # noqa: D105
+    def __iter__(self) -> t.Iterator[RecipeResponse]:  # type: ignore [override]  # noqa: D105
         return iter(self.root)
-
-
-@component
-def recipes_div(recipes: Recipes, context: Context) -> Component:  # noqa: ARG001
-    """A Div representing all recipes."""
-    return [recipe_div(recipe) for recipe in recipes]

@@ -3,21 +3,22 @@
 import asyncio
 from pathlib import Path
 
+from httpx import AsyncClient
 from pydantic_yaml import parse_yaml_file_as
+from rich import print as echo
 
-from meals import crud, schemas
-from meals.database import async_session, init_models
+from meals import schemas
 
 
 async def main() -> None:
     """Adds the recipes define in the YAML file to database."""
-    recipes = parse_yaml_file_as(schemas.Recipes, Path("recipes.yaml"))
+    recipes = parse_yaml_file_as(schemas.CreateRecipes, Path("recipes.yaml"))
 
-    await init_models()
-    async with async_session() as session, session.begin():
-        _ = [await crud.create_recipes(session, r) for r in recipes]
+    client = AsyncClient(base_url="http://127.0.0.1:8000/api/v1")
 
-        print(await crud.get_all_recipes(session))  # noqa: T201
+    results = [await client.post("/recipes", json=r.model_dump()) for r in recipes]
+
+    echo(results)
 
 
 if __name__ == "__main__":
