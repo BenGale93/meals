@@ -9,7 +9,7 @@ alias t := test
 alias tc := type_check
 
 @type_check:
-    uv run mypy src/ tests/
+    uv run mypy src/ tests/ --config-file=pyproject.toml
 
 alias l := lint
 

@@ -9,6 +9,7 @@ dependencies = [
     "fastapi[standard]>=0.119.0",
     "fasthx[htmy]>=3.0.1",
     "httpx>=0.28.1",
+    "pydantic>=2.12.3",
     "pydantic-yaml>=1.6.0",
     "sqlalchemy>=2.0.44",
 ]
@@ -21,11 +22,13 @@ dev = [
     { include-group = "test" },
     { include-group = "typing" },
 ]
-lint = [
-    "import-linter>=2.5.2",
-    "ruff>=0.14.1",
+lint = ["import-linter>=2.5.2", "ruff>=0.14.1"]
+test = [
+    "pytest>=8.4.1",
+    "pytest-randomly>=4.0.1",
+    "pytest-cov>=7.0.0",
+    "pytest-asyncio>=1.2.0",
 ]
-test = ["pytest>=8.4.1", "pytest-randomly>=4.0.1", "pytest-cov>=7.0.0"]
 typing = ["mypy>=1.18.2"]
 typing-test = [{ include-group = "test" }, { include-group = "typing" }]
 
@@ -48,7 +51,7 @@ ignore = ["COM812", "ISC001", "ANN401", "D101"]
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore all directories named `tests`.
-"tests/**" = ["D", "S", "ANN"]
+"tests/**" = ["D", "S", "ANN", "PLR2004"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -76,26 +79,27 @@ exclude_also = [
     "@t.overload",
     "@abstractmethod",
     "if TYPE_CHECKING",
+    "def __repr__",
 ]
 show_missing = true
+omit = ["main.py"]
 
 [tool.coverage.run]
 branch = true
 
 [tool.pytest.ini_options]
-addopts = "--cov=src/ --cov-report="
 filterwarnings = [
     "ignore::DeprecationWarning::",         # ignore deprecations from all modules
     "default::DeprecationWarning:meals.*:", # except from mymodule
+    "ignore::UserWarning",
 ]
+addopts = "--cov=src/ --cov-report="
+asyncio_mode = "auto"
 
 [tool.importlinter]
 root_package = "meals"
 
 [[tool.importlinter.contracts]]
-name="Layers"
-type="layers"
-layers=[
-    "meals.api | meals.web",
-    "meals.database"
-]
+name = "Layers"
+type = "layers"
+layers = ["meals.api | meals.web", "meals.database"]

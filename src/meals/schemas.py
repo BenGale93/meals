@@ -2,7 +2,7 @@
 
 import typing as t
 
-from pydantic import AliasPath, BaseModel, ConfigDict, Field, RootModel, model_validator
+from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, RootModel, model_validator
 
 
 class CreateIngredientRequest(BaseModel):
@@ -32,7 +32,7 @@ class IngredientResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     pk: int
-    name: str = Field(validation_alias=AliasPath("ingredient", "name"))
+    name: str = Field(validation_alias=AliasChoices(AliasPath("name"), AliasPath("ingredient", "name")))
     quantity: float
     unit: str
 
@@ -68,3 +68,6 @@ class Recipes(RootModel[list[RecipeResponse]]):
 
     def __iter__(self) -> t.Iterator[RecipeResponse]:  # type: ignore [override]  # noqa: D105
         return iter(self.root)
+
+    def __len__(self) -> int:  # noqa: D105
+        return len(self.root)
