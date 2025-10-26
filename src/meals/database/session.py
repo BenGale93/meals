@@ -1,6 +1,7 @@
 """Database interaction module."""
 
 import typing as t
+from collections.abc import AsyncGenerator  # noqa: TC003
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -8,9 +9,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
-
-if t.TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 DATABASE_URL = "sqlite+aiosqlite:///test.db"
 

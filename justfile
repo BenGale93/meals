@@ -16,6 +16,7 @@ alias l := lint
 @lint:
     uv run ruff format .
     uv run ruff check . --fix
+    uv run lint-imports
 
 @start:
     uv run fastapi dev src/main.py
