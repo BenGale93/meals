@@ -28,6 +28,7 @@ test = [
     "pytest-randomly>=4.0.1",
     "pytest-cov>=7.0.0",
     "pytest-asyncio>=1.2.0",
+    "inline-snapshot>=0.31.0",
 ]
 typing = ["mypy>=1.18.2"]
 typing-test = [{ include-group = "test" }, { include-group = "typing" }]

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+import typing as t
 
 import pytest
 import pytest_asyncio
@@ -7,9 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from meals.app import app
 from meals.database.session import Base, get_db
-
-if TYPE_CHECKING:
-    from fastapi import FastAPI
+from meals.schemas import CreateRecipeRequest
 
 
 @pytest_asyncio.fixture
@@ -26,7 +24,7 @@ async def db_session():
 
 
 @pytest.fixture
-def test_app(db_session: AsyncSession) -> FastAPI:
+def test_app(db_session: AsyncSession) -> t.Any:
     """Create a test app with overridden dependencies."""
     app.dependency_overrides[get_db] = lambda: db_session
     return app
@@ -38,3 +36,25 @@ async def client(test_app):
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture
+def carrots_recipe():
+    return CreateRecipeRequest.model_validate(
+        {
+            "name": "Carrots",
+            "instructions": "Test instructions",
+            "ingredients": [{"name": "Carrot", "quantity": 10.0, "unit": "units"}],
+        }
+    )
+
+
+@pytest.fixture
+def sweets_recipe():
+    return CreateRecipeRequest.model_validate(
+        {
+            "name": "Sweets",
+            "instructions": "More test instructions",
+            "ingredients": [{"name": "sweets", "quantity": 50.0, "unit": "units"}],
+        }
+    )

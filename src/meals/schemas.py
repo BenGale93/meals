@@ -36,10 +36,6 @@ class IngredientResponse(BaseModel):
     quantity: float
     unit: str
 
-    def __str__(self) -> str:
-        """The description of the ingredient."""
-        return f"{self.name} {self.quantity} {self.unit}"
-
 
 class CreateRecipeRequest(BaseModel):
     name: str
@@ -57,8 +53,7 @@ class RecipeResponse(BaseModel):
 
 
 class CreateRecipes(RootModel[list[CreateRecipeRequest]]):
-    def __iter__(self) -> t.Iterator[CreateRecipeRequest]:  # type: ignore [override]  # noqa: D105
-        return iter(self.root)
+    """A list of recipes to create."""
 
 
 class Recipes(RootModel[list[RecipeResponse]]):
@@ -68,6 +63,3 @@ class Recipes(RootModel[list[RecipeResponse]]):
 
     def __iter__(self) -> t.Iterator[RecipeResponse]:  # type: ignore [override]  # noqa: D105
         return iter(self.root)
-
-    def __len__(self) -> int:  # noqa: D105
-        return len(self.root)

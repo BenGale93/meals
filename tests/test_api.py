@@ -1,30 +1,12 @@
-import pytest
+from typing import TYPE_CHECKING
+
 from fastapi import status
-from httpx import AsyncClient
+from inline_snapshot import snapshot as snap
 
-from meals.schemas import CreateRecipeRequest, RecipeResponse, Recipes
+from meals.schemas import IngredientResponse, RecipeResponse, Recipes
 
-
-@pytest.fixture
-def carrots_recipe():
-    return CreateRecipeRequest.model_validate(
-        {
-            "name": "Carrots",
-            "instructions": "Test instructions",
-            "ingredients": [{"name": "Carrot", "quantity": 10.0, "unit": "units"}],
-        }
-    )
-
-
-@pytest.fixture
-def sweets_recipe():
-    return CreateRecipeRequest.model_validate(
-        {
-            "name": "Sweets",
-            "instructions": "More test instructions",
-            "ingredients": [{"name": "sweets", "quantity": 50.0, "unit": "units"}],
-        }
-    )
+if TYPE_CHECKING:
+    from httpx import AsyncClient
 
 
 class TestRecipesAPI:
@@ -41,8 +23,14 @@ class TestRecipesAPI:
 
         recipe = RecipeResponse.model_validate(response.json())
 
-        assert recipe.pk == pk
-        assert recipe.name == "Carrots"
+        assert recipe == snap(
+            RecipeResponse(
+                pk=1,
+                name="Carrots",
+                ingredients=[IngredientResponse(pk=1, name="Carrot", quantity=10.0, unit="units")],
+                instructions="Test instructions",
+            )
+        )
 
     async def test_create_and_get_recipe_by_name(self, client: AsyncClient, carrots_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
@@ -53,7 +41,14 @@ class TestRecipesAPI:
 
         recipe = RecipeResponse.model_validate(response.json())
 
-        assert recipe.name == "Carrots"
+        assert recipe == snap(
+            RecipeResponse(
+                pk=1,
+                name="Carrots",
+                ingredients=[IngredientResponse(pk=1, name="Carrot", quantity=10.0, unit="units")],
+                instructions="Test instructions",
+            )
+        )
 
     async def test_get_all_recipes(self, client: AsyncClient, carrots_recipe, sweets_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
@@ -70,7 +65,24 @@ class TestRecipesAPI:
 
         recipes = Recipes.model_validate(response.json())
 
-        assert len(recipes) == 2
+        assert recipes == snap(
+            Recipes(
+                root=[
+                    RecipeResponse(
+                        pk=1,
+                        name="Carrots",
+                        ingredients=[IngredientResponse(pk=1, name="Carrot", quantity=10.0, unit="units")],
+                        instructions="Test instructions",
+                    ),
+                    RecipeResponse(
+                        pk=2,
+                        name="Sweets",
+                        ingredients=[IngredientResponse(pk=2, name="sweets", quantity=50.0, unit="units")],
+                        instructions="More test instructions",
+                    ),
+                ]
+            )
+        )
 
     async def test_recipe_pk_not_found(self, client: AsyncClient):
         response = await client.get("/api/v1/recipes/1000")
