@@ -1,0 +1,9 @@
+<div class="m-5">
+<h1 class="font-bold text-[20px]">Carrots</h1>
+<ul class="m-3">
+<li ><div >
+Carrot 10.0 units
+</div></li>
+</ul>
+<p style="white-space:pre-line;">Test instructions</p>
+</div>
