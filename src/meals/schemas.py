@@ -51,6 +51,11 @@ class RecipeResponse(BaseModel):
     ingredients: list[IngredientResponse]
     instructions: str
 
+    @property
+    def anchor(self) -> str:
+        """Returns the name as a HTML anchor."""
+        return f"{self.name.replace(' ', '-')}"
+
 
 class CreateRecipes(RootModel[list[CreateRecipeRequest]]):
     """A list of recipes to create."""

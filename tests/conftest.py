@@ -42,7 +42,7 @@ async def client(test_app):
 def carrots_recipe():
     return CreateRecipeRequest.model_validate(
         {
-            "name": "Carrots",
+            "name": "Carrot Surprise",
             "instructions": "Test instructions",
             "ingredients": [{"name": "Carrot", "quantity": 10.0, "unit": "units"}],
         }

@@ -24,3 +24,14 @@ class TestRecipesAPI:
         response = await client.get("/recipes")
 
         assert response.text == external("uuid:c27cf730-5ec8-49ff-a1a0-293cc267fc4f.txt")
+
+    async def test_get_recipe_names(self, client: AsyncClient, carrots_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        pk = response.json().get("pk")
+
+        assert pk is not None
+
+        response = await client.get("/recipe_list")
+
+        assert response.text == external("uuid:ee140c45-c153-492c-9ed1-3d0629cd9ffd.txt")
