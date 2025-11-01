@@ -6,7 +6,7 @@ from fasthx.htmy import HTMY
 from meals import schemas
 from meals.database.repository import RecipeRepo  # noqa: TC001
 from meals.web import views
-from meals.web.components import recipes_div
+from meals.web.components import recipe_names, recipes_div
 
 router = APIRouter()
 
@@ -28,6 +28,15 @@ async def index() -> None:
 @router.get("/recipes")
 @htmy.page(recipes_div)
 async def get_recipes(repo: RecipeRepo) -> schemas.Recipes:
+    """Get the recipes as HTML."""
+    recipes = await repo.get_all()
+
+    return schemas.Recipes.model_validate(recipes)
+
+
+@router.get("/recipe_list")
+@htmy.page(recipe_names)
+async def recipe_list(repo: RecipeRepo) -> schemas.Recipes:
     """Get the recipes as HTML."""
     recipes = await repo.get_all()
 

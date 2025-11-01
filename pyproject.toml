@@ -104,3 +104,6 @@ root_package = "meals"
 name = "Layers"
 type = "layers"
 layers = ["meals.api | meals.web", "meals.database"]
+
+[tool.inline-snapshot]
+format-command = "uv run ruff format --stdin-filename {filename}"

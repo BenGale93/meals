@@ -26,7 +26,7 @@ class TestRecipesAPI:
         assert recipe == snap(
             RecipeResponse(
                 pk=1,
-                name="Carrots",
+                name="Carrot Surprise",
                 ingredients=[IngredientResponse(pk=1, name="Carrot", quantity=10.0, unit="units")],
                 instructions="Test instructions",
             )
@@ -35,7 +35,7 @@ class TestRecipesAPI:
     async def test_create_and_get_recipe_by_name(self, client: AsyncClient, carrots_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
 
-        response = await client.get("/api/v1/recipes/", params={"name": "Carrots"})
+        response = await client.get("/api/v1/recipes/", params={"name": carrots_recipe.name})
 
         assert response.status_code == status.HTTP_200_OK
 
@@ -44,7 +44,7 @@ class TestRecipesAPI:
         assert recipe == snap(
             RecipeResponse(
                 pk=1,
-                name="Carrots",
+                name="Carrot Surprise",
                 ingredients=[IngredientResponse(pk=1, name="Carrot", quantity=10.0, unit="units")],
                 instructions="Test instructions",
             )
@@ -70,7 +70,7 @@ class TestRecipesAPI:
                 root=[
                     RecipeResponse(
                         pk=1,
-                        name="Carrots",
+                        name="Carrot Surprise",
                         ingredients=[IngredientResponse(pk=1, name="Carrot", quantity=10.0, unit="units")],
                         instructions="Test instructions",
                     ),

@@ -9,6 +9,39 @@
 <script src="https://unpkg.com/htmx.org@2.0.2">
 
 </script>
+<script src="https://unpkg.com/alpinejs@3.x.x" defer="">
+
+</script>
 </head>
+<body class="bg-gray-50 text-gray-800 font-sans" x-data="{ showTop: false }" @scroll.window="showTop = (window.scrollY &gt; 300)">
+<header class="bg-white shadow-md sticky top-0 z-10" x-data="{ open: false }">
+<div class="max-w-3xl mx-auto p-4 flex justify-between items-center">
+<a href="#" class="text-2xl font-bold text-green-600">My Recipes</a>
+<button class="md:hidden focus:outline-none" @click="open = !open">
+
+<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-700" fill="none"
+           viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path x-show="!open" stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+    <path x-show="open" stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+</svg>
+
+</button>
+<nav class="hidden md:flex space-x-6">
+<a href="" class="text-green-700 hover:text-green-800 font-medium transition">Recipe</a>
+</nav>
+<nav x-show="open" x-transition="" class="md:hidden bg-white border-t border-gray-100 shadow-inner">
+<ul class="flex flex-col p-4 space-y-2">
+<li ><a href="" class="block text-green-700 font-medium p-2 rounded-lg hover:bg-green-50 transition">Recipe</a></li>
+</ul>
+</nav>
+</div>
+</header>
+<div >
+<div hx-get="/recipe_list" hx-trigger="load" hx-swap="outerHTML"></div>
 <div hx-get="/recipes" hx-trigger="load" hx-swap="outerHTML"></div>
+</div>
+<button id="topButton" class="fixed bottom-6 right-6 bg-green-600 text-white p-3 rounded-full shadow-lg hover:bg-green-700 transition z-50" x-show="showTop" x-transition="" @click="window.scrollTo({ top: 0, behavior: 'smooth' })">
+↑
+</button>
+</body>
 </html>
