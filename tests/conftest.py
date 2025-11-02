@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from meals.app import app
 from meals.database.session import Base, get_db
-from meals.schemas import CreateRecipeRequest
+from meals.schemas import CreateRecipeRequest, RecipeStep, TimingSteps
 
 
 @pytest_asyncio.fixture
@@ -58,3 +58,8 @@ def sweets_recipe():
             "ingredients": [{"name": "sweets", "quantity": 50.0, "unit": "units"}],
         }
     )
+
+
+@pytest.fixture
+def dummy_timings():
+    return TimingSteps([RecipeStep(step="Start", offset=-60), RecipeStep(step="Finish", offset=0)])

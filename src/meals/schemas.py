@@ -74,3 +74,17 @@ class Recipes(RootModel[list[RecipeResponse]]):
 
     def __iter__(self) -> t.Iterator[RecipeResponse]:  # type: ignore [override]  # noqa: D105
         return iter(self.root)
+
+
+class RecipeStep(BaseModel):
+    step: str
+    offset: int = Field(le=0)
+
+
+class TimingSteps(RootModel[list[RecipeStep]]):
+    pass
+
+
+class TimingsResponse(BaseModel):
+    pk: int
+    steps: TimingSteps

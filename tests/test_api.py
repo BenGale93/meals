@@ -9,6 +9,13 @@ if TYPE_CHECKING:
     from httpx import AsyncClient
 
 
+class TestHealthAPI:
+    async def test_health(self, client: AsyncClient):
+        response = await client.get("/health")
+
+        assert response.status_code == status.HTTP_200_OK
+
+
 class TestRecipesAPI:
     async def test_create_and_get_recipe(self, client: AsyncClient, carrots_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
@@ -126,8 +133,27 @@ class TestRecipesAPI:
         assert response.status_code == status.HTTP_201_CREATED
 
 
-class TestHealthAPI:
-    async def test_health(self, client: AsyncClient):
-        response = await client.get("/health")
+class TestTimingsAPI:
+    async def test_create_only_one(self, client: AsyncClient, dummy_timings):
+        response = await client.post("/api/v1/timings", json=dummy_timings.model_dump())
+        pk = response.json().get("pk")
 
-        assert response.status_code == status.HTTP_200_OK
+        assert pk is not None
+
+        response = await client.post("/api/v1/timings", json=dummy_timings.model_dump())
+        assert response.status_code == status.HTTP_409_CONFLICT
+
+    async def test_create_then_get(self, client: AsyncClient, dummy_timings):
+        response = await client.post("/api/v1/timings", json=dummy_timings.model_dump())
+        pk = response.json().get("pk")
+
+        assert pk is not None
+
+        response = await client.get("/api/v1/timings")
+
+        assert response.json()["steps"] == dummy_timings.model_dump()
+
+    async def test_get_not_found(self, client: AsyncClient):
+        response = await client.get("/api/v1/timings")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
