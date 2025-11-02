@@ -1,0 +1,5 @@
+<div class="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg">
+❌ Error(s) adding recipe
+<br />
+<p >Issue with ingredient 1: Expected ingredient to be in form: 'name quantity unit'. Where quantity is a number.</p>
+</div>

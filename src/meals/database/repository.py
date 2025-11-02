@@ -9,6 +9,7 @@ from sqlalchemy.orm import joinedload
 
 from meals.database.models import RecipeIngredient, StoredIngredient, StoredRecipe
 from meals.database.session import get_db
+from meals.exceptions import RecipeAlreadyExistsError
 
 if t.TYPE_CHECKING:
     from meals.schemas import CreateRecipeRequest
@@ -27,7 +28,7 @@ class RecipeRepository:
         recipe = stmt_result.first()
 
         if recipe:
-            return recipe
+            raise RecipeAlreadyExistsError
 
         stored_recipe = StoredRecipe(name=recipe_data.name, instructions=recipe_data.instructions)
 
