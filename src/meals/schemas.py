@@ -1,8 +1,11 @@
 """Module containing all the meal schemas."""
 
+import re
 import typing as t
 
 from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, RootModel, model_validator
+
+INGREDIENT_REGEX = re.compile(r"([a-zA-Z ]+)([\d.]+)([a-zA-Z ]+)")
 
 
 class CreateIngredientRequest(BaseModel):
@@ -19,12 +22,15 @@ class CreateIngredientRequest(BaseModel):
         if not isinstance(data, str):
             return data
 
-        *name, quantity, unit = data.split(" ")
+        match = INGREDIENT_REGEX.search(data)
+        if match is None:
+            msg = "Expected ingredient to be in form: 'name quantity unit'. Where quantity is a number."
+            raise ValueError(msg) from None
 
         return {
-            "name": " ".join(name),
-            "quantity": quantity,
-            "unit": unit,
+            "name": match.group(1).strip(),
+            "quantity": match.group(2),
+            "unit": match.group(3).strip(),
         }
 
 

@@ -1,0 +1,9 @@
+<section class="bg-white rounded-2xl shadow-md p-6" id="Test">
+<h2 class="text-2xl font-bold text-green-700 mb-3">Test</h2>
+<ul class="list-disc ml-5 mb-4">
+<li ><div >
+Flour 2.0 cups
+</div></li>
+</ul>
+<p style="white-space:pre-line;">Test steps</p>
+</section>

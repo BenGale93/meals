@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from meals import schemas
 from meals.database.repository import RecipeRepo  # noqa: TC001
+from meals.exceptions import RecipeAlreadyExistsError
 
 router = APIRouter(prefix="/v1", tags=["v1"])
 
@@ -11,7 +12,10 @@ router = APIRouter(prefix="/v1", tags=["v1"])
 @router.post("/recipes", status_code=status.HTTP_201_CREATED)
 async def create_recipe(data: schemas.CreateRecipeRequest, repo: RecipeRepo) -> schemas.RecipeResponse:
     """Creates the recipe in the given database."""
-    new_recipe = await repo.create(data)
+    try:
+        new_recipe = await repo.create(data)
+    except RecipeAlreadyExistsError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=e.message) from None
 
     return schemas.RecipeResponse.model_validate(new_recipe)
 

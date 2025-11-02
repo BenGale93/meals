@@ -111,9 +111,7 @@ class TestRecipesAPI:
             "/api/v1/recipes", json=carrots_recipe.model_dump() | {"instructions": new_instructions}
         )
 
-        recipe = RecipeResponse.model_validate(response.json())
-
-        assert recipe.instructions != new_instructions
+        assert response.status_code == status.HTTP_409_CONFLICT
 
     async def test_ingredient_in_common(self, client: AsyncClient, carrots_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())

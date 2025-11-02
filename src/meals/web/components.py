@@ -2,9 +2,14 @@
 
 import typing as t
 
-from htmy import Component, Context, SafeStr, component, html
+from htmy import Component, ComponentType, Context, SafeStr, component, html
+from pydantic import ValidationError
+
+from meals.exceptions import RecipeAlreadyExistsError
 
 if t.TYPE_CHECKING:
+    from pydantic_core import ErrorDetails
+
     from meals.schemas import IngredientResponse, RecipeResponse, Recipes
 
 
@@ -101,3 +106,33 @@ def nav_bar(pages: t.Sequence[tuple[str, str]], _context: Context) -> Component:
             class_="max-w-3xl mx-auto p-4 flex justify-between items-center",
         ),
     )
+
+
+@component
+def new_recipe_error(error: Exception, _context: Context) -> Component:
+    """Component returned when an error occurs adding a new recipe."""
+    messages: list[ComponentType]
+    if isinstance(error, RecipeAlreadyExistsError):
+        messages = [error.message]
+    elif isinstance(error, ValidationError):
+        messages = [html.p(format_new_recipe_error(e)) for e in error.errors()]
+        messages = ["❌ Error(s) adding recipe", html.br(), *messages]
+    else:  # pragma: no cover # If we knew how to trigger this, we would handle it better
+        # TODO: add logging here
+        messages = ["Unexpected error adding a recipe"]
+    return html.div(
+        *messages,
+        class_="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg",
+    )
+
+
+def format_new_recipe_error(error: ErrorDetails) -> str:
+    """Formats the error message to be more useful to end user."""
+    msg = error["msg"].removeprefix("Value error, ")
+
+    match error["loc"]:
+        case ("ingredients", number, *_) if isinstance(number, int):
+            number = number + 1
+            return f"Issue with ingredient {number}: {msg}"
+        case _:  # pragma: no cover # If we knew how to trigger this, we would handle it better
+            return f"Unknown error: {error}"

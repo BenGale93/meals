@@ -11,6 +11,7 @@ dependencies = [
     "httpx>=0.28.1",
     "pydantic>=2.12.3",
     "pydantic-yaml>=1.6.0",
+    "python-multipart>=0.0.20",
     "sqlalchemy>=2.0.44",
 ]
 license = "MIT"
@@ -48,7 +49,7 @@ docstring-code-format = true
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["COM812", "ISC001", "ANN401", "D101"]
+ignore = ["COM812", "ISC001", "ANN401", "D101", "FIX002", "TD"]
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore all directories named `tests`.
