@@ -52,3 +52,12 @@ class RecipeIngredient(Base):
 
     recipe: Mapped[StoredRecipe] = relationship("StoredRecipe", back_populates="ingredients", lazy="selectin")
     ingredient: Mapped[StoredIngredient] = relationship("StoredIngredient", back_populates="recipes", lazy="selectin")
+
+
+class StoredTimings(Base):
+    """Table for roast timings."""
+
+    __tablename__ = "timings"
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True)
+    steps: Mapped[str] = mapped_column(String, nullable=False)

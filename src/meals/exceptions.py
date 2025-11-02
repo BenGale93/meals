@@ -10,3 +10,10 @@ class RecipeAlreadyExistsError(MealsError):
         """Initialise with the default message."""
         self.message = message
         super().__init__(self.message)
+
+
+class TimingAlreadyExistsError(MealsError):
+    def __init__(self, message: str = "Timing already exists. Edit the existing one.") -> None:
+        """Initialise with the default message."""
+        self.message = message
+        super().__init__(self.message)

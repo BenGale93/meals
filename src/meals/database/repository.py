@@ -7,12 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 from sqlalchemy.orm import joinedload
 
-from meals.database.models import RecipeIngredient, StoredIngredient, StoredRecipe
+from meals.database.models import RecipeIngredient, StoredIngredient, StoredRecipe, StoredTimings
 from meals.database.session import get_db
-from meals.exceptions import RecipeAlreadyExistsError
+from meals.exceptions import RecipeAlreadyExistsError, TimingAlreadyExistsError
 
 if t.TYPE_CHECKING:
-    from meals.schemas import CreateRecipeRequest
+    from meals.schemas import CreateRecipeRequest, TimingSteps
 
 
 class RecipeRepository:
@@ -49,7 +49,7 @@ class RecipeRepository:
         return stored_recipe
 
     async def get(self, pk: int) -> StoredRecipe | None:
-        """Get the recipe by then primary key."""
+        """Get the recipe by the primary key."""
         return await self.session.get(StoredRecipe, pk)
 
     async def get_by_name(self, name: str) -> StoredRecipe | None:
@@ -84,3 +84,40 @@ def get_recipe_repo(session: AsyncSession = Depends(get_db)) -> RecipeRepository
 
 
 RecipeRepo = t.Annotated[RecipeRepository, Depends(get_recipe_repo)]
+
+
+class TimingsRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        """Initialise with an async database session."""
+        self.session = session
+
+    async def create(self, timings_data: TimingSteps) -> StoredTimings:
+        """Creates a new Roast timing."""
+        timing_stmt = select(StoredTimings)
+
+        stmt_result = await self.session.scalars(timing_stmt)
+        timing = stmt_result.first()
+
+        if timing:
+            raise TimingAlreadyExistsError
+
+        stored_timings = StoredTimings(steps=timings_data.model_dump_json())
+
+        self.session.add(stored_timings)
+        await self.session.flush()
+        return stored_timings
+
+    async def get(self) -> StoredTimings | None:
+        """Get the timing."""
+        timing_stmt = select(StoredTimings)
+
+        stmt_result = await self.session.scalars(timing_stmt)
+        return stmt_result.first()
+
+
+def get_timings_repo(session: AsyncSession = Depends(get_db)) -> TimingsRepository:  # noqa: B008
+    """Gets the recipe repository using dependency injection."""
+    return TimingsRepository(session)
+
+
+TimingRepo = t.Annotated[TimingsRepository, Depends(get_timings_repo)]

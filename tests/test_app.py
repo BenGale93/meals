@@ -6,4 +6,4 @@ from meals.database import Base
 
 def test_lifespan_init_models():
     with TestClient(app):
-        assert len(Base.registry.mappers) == 3
+        assert len(Base.registry.mappers) == 4
