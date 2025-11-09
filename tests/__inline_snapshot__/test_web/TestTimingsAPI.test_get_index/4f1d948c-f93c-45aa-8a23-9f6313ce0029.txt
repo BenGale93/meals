@@ -38,10 +38,14 @@
 </nav>
 </div>
 </header>
-<div >
-<div hx-get="/recipe_list" hx-trigger="load" hx-swap="outerHTML"></div>
-<div hx-get="/recipes" hx-trigger="load" hx-swap="outerHTML"></div>
+<main class="max-w-3xl mx-auto p-6 mt-8 bg-white shadow-md rounded-2xl">
+<h1 class="text-2xl font-bold text-green-700 mb-6">Timing Plan</h1>
+<div hx-get="/timings" hx-trigger="load" hx-target="#timing-container" hx-swap="innerHTML" id="timing-container">
+<div class="test-gray-400 italic">
+Loading timing data...
 </div>
+</div>
+</main>
 <button id="topButton" class="fixed bottom-6 right-6 bg-green-600 text-white p-3 rounded-full shadow-lg hover:bg-green-700 transition z-50" x-show="showTop" x-transition="" @click="window.scrollTo({ top: 0, behavior: 'smooth' })">
 ↑
 </button>

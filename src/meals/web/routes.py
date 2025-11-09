@@ -1,14 +1,23 @@
 """Routes for HTML pages and HTMX partials."""
 
 import typing as t
+from datetime import time
 
 from fastapi import APIRouter, Form
 from fasthx.htmy import HTMY
 
 from meals import schemas
-from meals.database.repository import RecipeRepo  # noqa: TC001
+from meals.database.repository import RecipeRepo, TimingRepo  # noqa: TC001
 from meals.web import views
-from meals.web.components import new_recipe_error, recipe_div, recipe_names, recipes_div
+from meals.web.components import (
+    failed_to_update_timings_div,
+    new_recipe_error,
+    recipe_div,
+    recipe_names,
+    recipes_div,
+    timings_div,
+    update_timings_div,
+)
 
 router = APIRouter()
 
@@ -31,6 +40,12 @@ async def index() -> None:
 @htmy.page(views.new_recipe_page)
 async def new() -> None:
     """The new page of the application."""
+
+
+@router.get(views.pages[2][1])
+@htmy.page(views.timings_page)
+async def timings() -> None:
+    """The timings pag of the application."""
 
 
 @router.get("/recipes")
@@ -66,3 +81,32 @@ async def new_recipe(
     recipe = await repo.create(recipe_data)
 
     return schemas.RecipeResponse.model_validate(recipe)
+
+
+@router.get("/timings")
+@htmy.page(timings_div)
+async def get_timings(repo: TimingRepo) -> schemas.TimingsResponse:
+    """Get the timings as HTML."""
+    timings = await repo.get()
+
+    if timings is None:
+        return schemas.TimingsResponse(
+            pk=None,
+            finish_time=time(18, 0, 0),
+            steps=schemas.TimingSteps([schemas.RecipeStep(description="Finish", offset=0)]),
+        )
+    steps = schemas.TimingSteps.model_validate_json(timings.steps)
+
+    return schemas.TimingsResponse(pk=timings.pk, steps=steps, finish_time=timings.finish_time)
+
+
+@router.patch("/timings")
+@htmy.page(update_timings_div, error_component_selector=failed_to_update_timings_div)
+async def update_timings(
+    finish_time: t.Annotated[str, Form()], steps: t.Annotated[str, Form()], repo: TimingRepo
+) -> None:
+    """Get the timings as HTML."""
+    timings_data = schemas.TimingsCreate.model_validate(
+        {"finish_time": finish_time, "steps": schemas.TimingSteps.model_validate_json(steps)}
+    )
+    await repo.update(timings_data)

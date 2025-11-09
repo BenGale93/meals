@@ -1,0 +1,66 @@
+<div x-data='timingApp({"pk":1,"steps":[{"description":"End","offset":0}],"finish_time":"12:00:00"})' x-init="init()">
+<div class="mb-6">
+<label class="block font-semibold mb-1">
+Target Finish Time
+</label>
+<input type="time" x-model="finishTime" @input="recalculate()" value="12:00:00"/>
+</div>
+<div class="mt-4">
+<button type="button" @click="addAboveStep()" class="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition">
++ Add Step
+</button>
+</div>
+<div class="space-y-3">
+<template x-for="(step, index) in steps" :key="index">
+<div class="flex flex-row items-center space-x-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+<input type="text" x-model="step.description" placeholder="Step Description" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none sm:mb-0"/>
+<input x-model.number="step.offset" type="number" class="w-20 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none text-right"/>
+<div class="text-lg text-gray-700 font-medium sm:w-28 text-center sm:mt-0">
+<template x-if="finishTime">
+<span x-text="calculateTimeString(step.offset)"></span>
+</template>
+</div>
+<button type="button" @click="removeStep(index)" x-show="steps.length &gt; 1" class="text-red-500 hover:text-red-700 ml-2 font-bold text-lg">
+x
+</button>
+</div>
+</template>
+</div>
+<div class="mt-4">
+<button type="button" @click="addBelowStep()" class="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition">
++ Add Step
+</button>
+</div>
+<div class="mt-6 text-right">
+<button type="button" hx-patch="/timings" hx-vals="js:{'finish_time': Alpine.store('finishTime'), 'steps': JSON.stringify(Alpine.store('steps'))}" hx-target="#form-result" hx-swap="innerHTML" hx-ext="json-enc" class="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition">
+Save Timing
+</button>
+</div>
+<div id="form-result" class="mt-6"></div>
+<script >
+
+function timingApp(initial) {
+    return {
+    finishTime: initial.finish_time || '',
+    steps: initial.steps?.length ? initial.steps : [{ description: 'Finish', offset: 0 }],
+    init() {
+        Alpine.store("finishTime", this.finishTime);
+        Alpine.store("steps", this.steps);
+    },
+    addAboveStep() { this.steps.unshift({ description: '', offset: 0 }) },
+    addBelowStep() { this.steps.push({ description: '', offset: 0 }) },
+    removeStep(i) { this.steps.splice(i, 1) },
+    recalculate() {},
+    calculateTimeString(offset) {
+        if (!this.finishTime) return '--:--';
+        const [hour, minute] = this.finishTime.split(':').map(Number);
+        const finish = new Date();
+        finish.setHours(hour, minute);
+        const start = new Date(finish.getTime() + offset * 60000);
+        return start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    }
+}
+
+</script>
+</div>

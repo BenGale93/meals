@@ -6,7 +6,7 @@ from htmy import Component, ComponentType, Context, component, html
 
 from meals.web.components import nav_bar
 
-pages = [("Recipes", "/"), ("New Recipe", "/new.html")]
+pages = [("Recipes", "/"), ("New Recipe", "/new.html"), ("Timings", "/timings.html")]
 
 
 @component
@@ -143,6 +143,24 @@ def new_recipe_page(_: t.Any) -> Component:
                 x_data="{ ingredients: [''] }",
             ),
             html.div(id="form-result", class_="mt-6"),
+            class_="max-w-3xl mx-auto p-6 mt-8 bg-white shadow-md rounded-2xl",
+        )
+    )
+
+
+def timings_page(_: t.Any) -> Component:
+    """The HTML of the timings page of the app."""
+    return page(
+        html.main(
+            html.h1("Timing Plan", class_="text-2xl font-bold text-green-700 mb-6"),
+            html.div(
+                html.div("Loading timing data...", class_="test-gray-400 italic"),
+                hx_get="/timings",
+                hx_trigger="load",
+                hx_target="#timing-container",
+                hx_swap="innerHTML",
+                id="timing-container",
+            ),
             class_="max-w-3xl mx-auto p-6 mt-8 bg-white shadow-md rounded-2xl",
         )
     )

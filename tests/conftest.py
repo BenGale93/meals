@@ -1,4 +1,5 @@
 import typing as t
+from datetime import time
 
 import pytest
 import pytest_asyncio
@@ -7,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from meals.app import app
 from meals.database.session import Base, get_db
-from meals.schemas import CreateRecipeRequest, RecipeStep, TimingSteps
+from meals.schemas import CreateRecipeRequest, RecipeStep, TimingsCreate, TimingSteps
 
 
 @pytest_asyncio.fixture
@@ -62,4 +63,7 @@ def sweets_recipe():
 
 @pytest.fixture
 def dummy_timings():
-    return TimingSteps([RecipeStep(step="Start", offset=-60), RecipeStep(step="Finish", offset=0)])
+    return TimingsCreate(
+        steps=TimingSteps([RecipeStep(description="Start", offset=-60), RecipeStep(description="Finish", offset=0)]),
+        finish_time=time(18, 0, 0),
+    )
