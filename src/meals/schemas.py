@@ -64,6 +64,20 @@ class RecipeResponse(BaseModel):
         return f"{self.name.replace(' ', '-')}"
 
 
+class UpdateRecipeRequest(BaseModel):
+    pk: int
+    name: str
+    ingredients: list[CreateIngredientRequest]
+    instructions: str
+
+    def get_ingredient(self, name: str) -> CreateIngredientRequest | None:
+        """Get the ingredient by name."""
+        for i in self.ingredients:
+            if i.name == name:
+                return i
+        return None
+
+
 class CreateRecipes(RootModel[list[CreateRecipeRequest]]):
     """A list of recipes to create."""
 

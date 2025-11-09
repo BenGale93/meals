@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from meals import schemas
 from meals.database.repository import RecipeRepo, TimingRepo  # noqa: TC001
-from meals.exceptions import RecipeAlreadyExistsError, TimingAlreadyExistsError
+from meals.exceptions import RecipeAlreadyExistsError, RecipeDoesNotExistError, TimingAlreadyExistsError
 
 router = APIRouter(prefix="/v1", tags=["v1"])
 
@@ -46,6 +46,17 @@ async def get_recipe(name: str, repo: RecipeRepo) -> schemas.RecipeResponse:
 
     if recipe is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Recipe named '{name}' does not exist.")
+
+    return schemas.RecipeResponse.model_validate(recipe)
+
+
+@router.put("/recipes", status_code=status.HTTP_200_OK)
+async def update_recipe(data: schemas.UpdateRecipeRequest, repo: RecipeRepo) -> schemas.RecipeResponse:
+    """Update an existing recipe."""
+    try:
+        recipe = await repo.update(data)
+    except RecipeDoesNotExistError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message) from None
 
     return schemas.RecipeResponse.model_validate(recipe)
 

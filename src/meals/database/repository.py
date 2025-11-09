@@ -9,10 +9,10 @@ from sqlalchemy.orm import joinedload
 
 from meals.database.models import RecipeIngredient, StoredIngredient, StoredRecipe, StoredTimings
 from meals.database.session import get_db
-from meals.exceptions import RecipeAlreadyExistsError, TimingAlreadyExistsError
+from meals.exceptions import RecipeAlreadyExistsError, RecipeDoesNotExistError, TimingAlreadyExistsError
 
 if t.TYPE_CHECKING:
-    from meals.schemas import CreateRecipeRequest, TimingsCreate
+    from meals.schemas import CreateRecipeRequest, TimingsCreate, UpdateRecipeRequest
 
 
 class RecipeRepository:
@@ -32,17 +32,17 @@ class RecipeRepository:
 
         stored_recipe = StoredRecipe(name=recipe_data.name, instructions=recipe_data.instructions)
 
-        for ing in recipe_data.ingredients:
-            ing_stmt = select(StoredIngredient).filter_by(name=ing.name)
-            ing_stmt_result = await self.session.scalars(ing_stmt)
-            ingredient = ing_stmt_result.first()
-            if not ingredient:
-                ingredient = StoredIngredient(name=ing.name)
-                self.session.add(ingredient)
-                await self.session.flush()
-            stored_recipe.ingredients.append(
-                RecipeIngredient(ingredient=ingredient, quantity=ing.quantity, unit=ing.unit)
-            )
+        with self.session.no_autoflush:
+            for ing in recipe_data.ingredients:
+                ing_stmt = select(StoredIngredient).filter_by(name=ing.name)
+                ing_stmt_result = await self.session.scalars(ing_stmt)
+                ingredient = ing_stmt_result.first()
+                if not ingredient:
+                    ingredient = StoredIngredient(name=ing.name)
+                    self.session.add(ingredient)
+                stored_recipe.ingredients.append(
+                    RecipeIngredient(ingredient=ingredient, quantity=ing.quantity, unit=ing.unit)
+                )
 
         self.session.add(stored_recipe)
         await self.session.flush()
@@ -76,6 +76,49 @@ class RecipeRepository:
         stmt_result = await self.session.scalars(stmt)
 
         return list(stmt_result.unique().fetchall())
+
+    async def update(self, recipe_data: UpdateRecipeRequest) -> StoredRecipe:
+        """Update an existing recipe."""
+        existing_recipe = await self.get(recipe_data.pk)
+
+        if existing_recipe is None:
+            raise RecipeDoesNotExistError
+
+        existing_recipe.name = recipe_data.name
+        existing_recipe.instructions = recipe_data.instructions
+
+        existing_ingredient_names = {i.ingredient.name for i in existing_recipe.ingredients}
+        new_ingredient_names = {i.name for i in recipe_data.ingredients}
+
+        to_delete = existing_ingredient_names - new_ingredient_names
+        to_add = new_ingredient_names - existing_ingredient_names
+        to_update = existing_ingredient_names | new_ingredient_names
+
+        for existing in existing_recipe.ingredients:
+            if existing.ingredient.name not in to_update:  # pragma: no cover # Not possible
+                continue
+            new_i = recipe_data.get_ingredient(existing.ingredient.name)
+            if new_i is not None:
+                existing.quantity = new_i.quantity
+                existing.unit = new_i.unit
+
+        existing_recipe.ingredients = [i for i in existing_recipe.ingredients if i.ingredient.name not in to_delete]
+
+        for new in to_add:
+            new_i = recipe_data.get_ingredient(new)
+            if new_i is None:  # pragma: no cover # Not possible
+                continue
+            ing_stmt = select(StoredIngredient).filter_by(name=new_i.name)
+            ing_stmt_result = await self.session.scalars(ing_stmt)
+            ingredient = ing_stmt_result.first()
+            if not ingredient:
+                ingredient = StoredIngredient(name=new_i.name)
+                self.session.add(ingredient)
+            existing_recipe.ingredients.append(
+                RecipeIngredient(ingredient=ingredient, quantity=new_i.quantity, unit=new_i.unit)
+            )
+        await self.session.flush()
+        return existing_recipe
 
 
 def get_recipe_repo(session: AsyncSession = Depends(get_db)) -> RecipeRepository:  # noqa: B008

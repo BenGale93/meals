@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from fastapi import status
 from inline_snapshot import snapshot as snap
 
-from meals.schemas import IngredientResponse, RecipeResponse, Recipes
+from meals.schemas import CreateIngredientRequest, IngredientResponse, RecipeResponse, Recipes, UpdateRecipeRequest
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -36,6 +36,32 @@ class TestRecipesAPI:
                 pk=1,
                 name="Carrot Surprise",
                 ingredients=[IngredientResponse(pk=1, name="Carrot", quantity=10.0, unit="units")],
+                instructions="Test instructions",
+            )
+        )
+
+    async def test_create_and_get_recipe_multi_ingredients(self, client: AsyncClient, carrots_recipe):
+        carrots_recipe.ingredients.append(CreateIngredientRequest(name="Test", quantity=1, unit="unit"))
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        pk = response.json().get("pk")
+
+        assert pk is not None
+
+        response = await client.get(f"/api/v1/recipes/{pk}")
+
+        assert response.status_code == status.HTTP_200_OK
+
+        recipe = RecipeResponse.model_validate(response.json())
+
+        assert recipe == snap(
+            RecipeResponse(
+                pk=1,
+                name="Carrot Surprise",
+                ingredients=[
+                    IngredientResponse(pk=1, name="Carrot", quantity=10.0, unit="units"),
+                    IngredientResponse(pk=2, name="Test", quantity=1.0, unit="unit"),
+                ],
                 instructions="Test instructions",
             )
         )
@@ -132,6 +158,122 @@ class TestRecipesAPI:
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump() | {"name": new_name})
 
         assert response.status_code == status.HTTP_201_CREATED
+
+    async def test_create_and_update(self, client: AsyncClient, carrots_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        pk = response.json().get("pk")
+
+        assert pk is not None
+
+        recipe = UpdateRecipeRequest.model_validate(response.json())
+        recipe.ingredients[0].quantity = 20
+
+        response = await client.put("/api/v1/recipes", json=recipe.model_dump())
+
+        assert response.json() == snap(
+            {
+                "pk": 1,
+                "name": "Carrot Surprise",
+                "ingredients": [{"pk": 1, "name": "Carrot", "quantity": 20.0, "unit": "units"}],
+                "instructions": "Test instructions",
+            }
+        )
+
+    async def test_update_no_create(self, client: AsyncClient, carrots_recipe):
+        carrots_json = carrots_recipe.model_dump()
+        carrots_json["pk"] = 1
+        for i, ing in enumerate(carrots_json["ingredients"], 1):
+            ing["pk"] = i
+        recipe = RecipeResponse.model_validate(carrots_json)
+
+        response = await client.put("/api/v1/recipes", json=recipe.model_dump())
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    async def test_create_and_update_delete_ingredient(self, client: AsyncClient, carrots_recipe):
+        carrots_recipe.ingredients.append(CreateIngredientRequest(name="delete", quantity=1.0, unit="stuff"))
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        assert response.json() == snap(
+            {
+                "pk": 1,
+                "name": "Carrot Surprise",
+                "ingredients": [
+                    {"pk": 1, "name": "Carrot", "quantity": 10.0, "unit": "units"},
+                    {"pk": 2, "name": "delete", "quantity": 1.0, "unit": "stuff"},
+                ],
+                "instructions": "Test instructions",
+            }
+        )
+
+        recipe = RecipeResponse.model_validate(response.json())
+        del recipe.ingredients[1]
+
+        response = await client.put("/api/v1/recipes", json=recipe.model_dump())
+
+        assert response.json() == snap(
+            {
+                "pk": 1,
+                "name": "Carrot Surprise",
+                "ingredients": [{"pk": 1, "name": "Carrot", "quantity": 10.0, "unit": "units"}],
+                "instructions": "Test instructions",
+            }
+        )
+
+    async def test_create_and_update_add_ingredient(self, client: AsyncClient, carrots_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        assert response.json() == snap(
+            {
+                "pk": 1,
+                "name": "Carrot Surprise",
+                "ingredients": [
+                    {"pk": 1, "name": "Carrot", "quantity": 10.0, "unit": "units"},
+                ],
+                "instructions": "Test instructions",
+            }
+        )
+
+        recipe = RecipeResponse.model_validate(response.json())
+        recipe.ingredients.append(CreateIngredientRequest(name="new", quantity=1.0, unit="stuff"))
+
+        response = await client.put("/api/v1/recipes", json=recipe.model_dump())
+
+        assert response.json() == snap(
+            {
+                "pk": 1,
+                "name": "Carrot Surprise",
+                "ingredients": [
+                    {"pk": 1, "name": "Carrot", "quantity": 10.0, "unit": "units"},
+                    {"pk": 2, "name": "new", "quantity": 1.0, "unit": "stuff"},
+                ],
+                "instructions": "Test instructions",
+            }
+        )
+
+    async def test_create_and_update_add_ingredient_found_on_other_recipe(
+        self, client: AsyncClient, carrots_recipe, sweets_recipe
+    ):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        _ = await client.post("/api/v1/recipes", json=sweets_recipe.model_dump())
+
+        recipe = RecipeResponse.model_validate(response.json())
+        recipe.ingredients.append(sweets_recipe.ingredients[0])
+
+        response = await client.put("/api/v1/recipes", json=recipe.model_dump())
+
+        assert response.json() == snap(
+            {
+                "pk": 1,
+                "name": "Carrot Surprise",
+                "ingredients": [
+                    {"pk": 1, "name": "Carrot", "quantity": 10.0, "unit": "units"},
+                    {"pk": 3, "name": "sweets", "quantity": 50.0, "unit": "units"},
+                ],
+                "instructions": "Test instructions",
+            }
+        )
 
 
 class TestTimingsAPI:
