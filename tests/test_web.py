@@ -95,3 +95,43 @@ class TestNewRecipeAPI:
         response = await client.post("/new_recipe", data=new_recipe)
 
         assert response.text == external("uuid:9d7c702c-8859-4660-812c-7797f6bdc57b.txt")
+
+
+class TestTimingsAPI:
+    async def test_get_index(self, client: AsyncClient):
+        response = await client.get("/timings.html")
+
+        assert response.text == external("uuid:4f1d948c-f93c-45aa-8a23-9f6313ce0029.txt")
+
+    async def test_get_placeholder_timings(self, client: AsyncClient):
+        response = await client.get("/timings")
+        assert response.text == external("uuid:c7fc40cc-df47-4d31-b9d6-8e854e9042f3.txt")
+        assert response.status_code == status.HTTP_200_OK
+
+    async def test_get_existing_timings(self, client: AsyncClient):
+        new_timings = {"finish_time": "12:00:00", "steps": '[{"description": "End", "offset": 0}]'}
+        response = await client.patch("/timings", data=new_timings)
+
+        response = await client.get("/timings")
+        assert response.text == external("uuid:d2116b7b-a0d7-4b66-8e69-b8a6e91a77d1.txt")
+        assert response.status_code == status.HTTP_200_OK
+        assert "12:00:00" in response.text
+
+    async def test_update_timings(self, client: AsyncClient):
+        new_timings = {"finish_time": "12:00:00", "steps": '[{"description": "End", "offset": 0}]'}
+        response = await client.patch("/timings", data=new_timings)
+
+        assert response.text == external("uuid:2646a836-6c9e-4f73-a93c-b47f075457f0.txt")
+        assert response.status_code == status.HTTP_200_OK
+
+        check = await client.get("/api/v1/timings")
+        pk = check.json().get("pk")
+
+        assert pk is not None
+
+    async def test_update_timings_failure(self, client: AsyncClient):
+        new_timings = {"finish_time": "12:00:00", "steps": '[{"description": "End", "offset": 10}]'}
+        response = await client.patch("/timings", data=new_timings)
+
+        assert response.text == external("uuid:f577cc02-d394-4019-b6fa-50584bbebff0.txt")
+        assert "Error" in response.text

@@ -1,6 +1,8 @@
 """Tables used by the application."""
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text
+from datetime import time  # noqa: TC003
+
+from sqlalchemy import Float, ForeignKey, Integer, String, Text, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from meals.database.session import Base
@@ -60,4 +62,5 @@ class StoredTimings(Base):
     __tablename__ = "timings"
 
     pk: Mapped[int] = mapped_column(Integer, primary_key=True)
+    finish_time: Mapped[time] = mapped_column(Time, nullable=False)
     steps: Mapped[str] = mapped_column(String, nullable=False)

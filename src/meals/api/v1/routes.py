@@ -51,7 +51,7 @@ async def get_recipe(name: str, repo: RecipeRepo) -> schemas.RecipeResponse:
 
 
 @router.post("/timings", status_code=status.HTTP_201_CREATED)
-async def create_timings(data: schemas.TimingSteps, repo: TimingRepo) -> schemas.TimingsResponse:
+async def create_timings(data: schemas.TimingsCreate, repo: TimingRepo) -> schemas.TimingsResponse:
     """Creates the timings in the given database."""
     try:
         new_timings = await repo.create(data)
@@ -60,7 +60,7 @@ async def create_timings(data: schemas.TimingSteps, repo: TimingRepo) -> schemas
 
     steps = schemas.TimingSteps.model_validate_json(new_timings.steps)
 
-    return schemas.TimingsResponse(pk=new_timings.pk, steps=steps)
+    return schemas.TimingsResponse(pk=new_timings.pk, steps=steps, finish_time=new_timings.finish_time)
 
 
 @router.get("/timings", status_code=status.HTTP_200_OK)
@@ -69,8 +69,18 @@ async def get_timings(repo: TimingRepo) -> schemas.TimingsResponse:
     timings = await repo.get()
 
     if timings is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe does not exist.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Timing does not exist.")
 
     steps = schemas.TimingSteps.model_validate_json(timings.steps)
 
-    return schemas.TimingsResponse(pk=timings.pk, steps=steps)
+    return schemas.TimingsResponse(pk=timings.pk, steps=steps, finish_time=timings.finish_time)
+
+
+@router.patch("/timings", status_code=status.HTTP_200_OK)
+async def update_timings(timings_data: schemas.TimingsCreate, repo: TimingRepo) -> schemas.TimingsResponse:
+    """Get the timings by the primary key of that timing."""
+    timings = await repo.update(timings_data)
+
+    steps = schemas.TimingSteps.model_validate_json(timings.steps)
+
+    return schemas.TimingsResponse(pk=timings.pk, steps=steps, finish_time=timings.finish_time)

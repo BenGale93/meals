@@ -2,8 +2,9 @@
 
 import re
 import typing as t
+from datetime import time  # noqa: TC003
 
-from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, RootModel, model_validator
+from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
 
 INGREDIENT_REGEX = re.compile(r"([a-zA-Z ]+)([\d.]+)([a-zA-Z ]+)")
 
@@ -66,6 +67,9 @@ class RecipeResponse(BaseModel):
 class CreateRecipes(RootModel[list[CreateRecipeRequest]]):
     """A list of recipes to create."""
 
+    def __iter__(self) -> t.Iterator[CreateRecipeRequest]:  # type: ignore [override]  # noqa: D105 # pragma: no cover
+        return iter(self.root)
+
 
 class Recipes(RootModel[list[RecipeResponse]]):
     """A list of recipes."""
@@ -77,14 +81,29 @@ class Recipes(RootModel[list[RecipeResponse]]):
 
 
 class RecipeStep(BaseModel):
-    step: str
+    model_config = ConfigDict(from_attributes=True)
+
+    description: str
     offset: int = Field(le=0)
 
 
 class TimingSteps(RootModel[list[RecipeStep]]):
-    pass
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TimingsCreate(BaseModel):
+    steps: TimingSteps
+    finish_time: time
+
+    @field_serializer("finish_time", mode="plain")
+    def time_to_str(self, value: time) -> str:
+        """Formats the time as a string."""
+        return value.isoformat()
 
 
 class TimingsResponse(BaseModel):
-    pk: int
+    model_config = ConfigDict(from_attributes=True)
+
+    pk: int | None
     steps: TimingSteps
+    finish_time: time

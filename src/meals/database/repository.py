@@ -12,7 +12,7 @@ from meals.database.session import get_db
 from meals.exceptions import RecipeAlreadyExistsError, TimingAlreadyExistsError
 
 if t.TYPE_CHECKING:
-    from meals.schemas import CreateRecipeRequest, TimingSteps
+    from meals.schemas import CreateRecipeRequest, TimingsCreate
 
 
 class RecipeRepository:
@@ -91,8 +91,8 @@ class TimingsRepository:
         """Initialise with an async database session."""
         self.session = session
 
-    async def create(self, timings_data: TimingSteps) -> StoredTimings:
-        """Creates a new Roast timing."""
+    async def create(self, timings_data: TimingsCreate) -> StoredTimings:
+        """Creates a new timing."""
         timing_stmt = select(StoredTimings)
 
         stmt_result = await self.session.scalars(timing_stmt)
@@ -101,7 +101,7 @@ class TimingsRepository:
         if timing:
             raise TimingAlreadyExistsError
 
-        stored_timings = StoredTimings(steps=timings_data.model_dump_json())
+        stored_timings = StoredTimings(steps=timings_data.steps.model_dump_json(), finish_time=timings_data.finish_time)
 
         self.session.add(stored_timings)
         await self.session.flush()
@@ -113,6 +113,23 @@ class TimingsRepository:
 
         stmt_result = await self.session.scalars(timing_stmt)
         return stmt_result.first()
+
+    async def update(self, timings_data: TimingsCreate) -> StoredTimings:
+        """Updates a timing or creates it if it doesn't exist."""
+        timing_stmt = select(StoredTimings)
+
+        stmt_result = await self.session.scalars(timing_stmt)
+        timing = stmt_result.first()
+
+        if not timing:
+            timing = StoredTimings(steps=timings_data.steps.model_dump_json(), finish_time=timings_data.finish_time)
+            self.session.add(timing)
+        else:
+            timing.finish_time = timings_data.finish_time
+            timing.steps = timings_data.steps.model_dump_json()
+
+        await self.session.flush()
+        return timing
 
 
 def get_timings_repo(session: AsyncSession = Depends(get_db)) -> TimingsRepository:  # noqa: B008
