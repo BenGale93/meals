@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from meals.api.v1.routes import router as v1_router
 from meals.database.session import init_models
-from meals.web.routes import router as view_router
+from meals.web.core import router as view_router
 
 
 @asynccontextmanager

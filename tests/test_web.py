@@ -44,6 +44,11 @@ class TestRecipesAPI:
 
 
 class TestNewRecipeAPI:
+    async def test_get_new_page(self, client: AsyncClient):
+        response = await client.get("/new.html")
+
+        assert response.text == external("uuid:ac29b30e-908a-4923-b547-323a96ac28c4.txt")
+
     async def test_new_recipe_success(self, client: AsyncClient):
         new_recipe = {"name": "Test", "ingredients": ["Flour 2 cups"], "instructions": "Test steps"}
         response = await client.post("/new_recipe", data=new_recipe)
