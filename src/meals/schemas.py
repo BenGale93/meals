@@ -43,6 +43,9 @@ class IngredientResponse(BaseModel):
     quantity: float
     unit: str
 
+    def __str__(self) -> str:  # noqa: D105
+        return f"{self.name} {self.quantity} {self.unit}"
+
 
 class CreateRecipeRequest(BaseModel):
     name: str

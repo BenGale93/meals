@@ -235,8 +235,8 @@ class TestRecipesAPI:
             }
         )
 
-        recipe = RecipeResponse.model_validate(response.json())
-        recipe.ingredients.append(CreateIngredientRequest(name="new", quantity=1.0, unit="stuff"))
+        recipe = UpdateRecipeRequest.model_validate(response.json())
+        recipe.ingredients.append(CreateIngredientRequest(pk=2, name="new", quantity=1.0, unit="stuff"))
 
         response = await client.put("/api/v1/recipes", json=recipe.model_dump())
 

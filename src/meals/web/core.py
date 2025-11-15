@@ -4,7 +4,7 @@ import typing as t
 
 from fastapi import APIRouter
 from fasthx.htmy import HTMY
-from htmy import Component, ComponentType, SafeStr, html
+from htmy import Component, ComponentType, SafeStr, Tag, html
 
 if t.TYPE_CHECKING:
     from meals.schemas import IngredientResponse, RecipeResponse
@@ -145,12 +145,35 @@ def ingredient_div(ingredient: IngredientResponse) -> html.div:
     return html.div(f"{ingredient.name} {ingredient.quantity} {ingredient.unit}")
 
 
-def recipe_div(recipe: RecipeResponse) -> html.section:
-    """A Div representing a recipe."""
-    return html.section(
+def _common_recipe(recipe: RecipeResponse) -> tuple[list[Tag], dict[str, t.Any]]:
+    core_components = [
         html.h2(recipe.name, class_="text-2xl font-bold text-green-700 mb-3"),
         html.ul(*[html.li(ingredient_div(i)) for i in recipe.ingredients], class_="list-disc ml-5 mb-4"),
-        html.p(recipe.instructions, style="white-space:pre-line;"),
-        class_="bg-white rounded-2xl shadow-md p-6",
-        id=recipe.anchor,
+        html.p(recipe.instructions, style="white-space:pre-line;", class_="pb-3"),
+    ]
+    properties = {
+        "class_": "bg-white rounded-2xl shadow-md p-6",
+        "id": recipe.anchor,
+    }
+    return core_components, properties
+
+
+def recipe_section(recipe: RecipeResponse) -> html.section:
+    """A Section representing a recipe."""
+    core_components, properties = _common_recipe(recipe)
+    return html.section(*core_components, **properties)
+
+
+def editable_recipe_section(recipe: RecipeResponse) -> html.section:
+    """A Section representing a editable recipe."""
+    core_components, properties = _common_recipe(recipe)
+    core_components.append(
+        html.button(
+            "Edit",
+            hx_get=f"/recipe/{recipe.pk}/edit",
+            class_="px-4 py-1 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition",
+        ),
     )
+    properties = properties | {"hx_target": "this", "hx_swap": "outerHTML"}
+
+    return html.section(*core_components, **properties)

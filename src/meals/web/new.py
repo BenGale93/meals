@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from meals.database.repository import RecipeRepo  # noqa: TC001
 from meals.exceptions import RecipeAlreadyExistsError
 from meals.schemas import CreateRecipeRequest, RecipeResponse
-from meals.web.core import PageRegistry, htmy_renderer, page, recipe_div, router
+from meals.web.core import PageRegistry, htmy_renderer, page, recipe_section, router
 
 if t.TYPE_CHECKING:
     from pydantic_core import ErrorDetails
@@ -164,7 +164,7 @@ async def new() -> None:
 
 
 @router.post("/new_recipe", response_model=None)
-@htmy_renderer.page(recipe_div, error_component_selector=new_recipe_error)
+@htmy_renderer.page(recipe_section, error_component_selector=new_recipe_error)
 async def new_recipe(
     name: t.Annotated[str, Form()],
     instructions: t.Annotated[str, Form()],
