@@ -5,5 +5,5 @@
 Flour 2.0 cups
 </div></li>
 </ul>
-<p style="white-space:pre-line;">Test steps</p>
+<p style="white-space:pre-line;" class="pb-3">Test steps</p>
 </section>

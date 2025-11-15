@@ -1,0 +1,6 @@
+<div class="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg mb-4">
+Error updating recipe: 1 validation error for UpdateRecipeRequest
+ingredients.0
+  Value error, Expected ingredient to be in form: 'name quantity unit'. Where quantity is a number. [type=value_error, input_value='Carrot x units', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.12/v/value_error
+</div>

@@ -20,6 +20,15 @@ class TestViewAPI:
 
 
 class TestRecipesAPI:
+    async def test_get_recipe(self, client: AsyncClient, carrots_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        json_result = response.json()
+        pk = json_result["pk"]
+
+        response = await client.get(f"/recipe/{pk}")
+
+        assert response.text == external("uuid:435bfb88-5a75-41c2-84ee-a75e8237f184.txt")
+
     async def test_get_recipes(self, client: AsyncClient, carrots_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
 
@@ -41,6 +50,38 @@ class TestRecipesAPI:
         response = await client.get("/recipe_list")
 
         assert response.text == external("uuid:ee140c45-c153-492c-9ed1-3d0629cd9ffd.txt")
+
+    async def test_update_recipe(self, client: AsyncClient, carrots_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        json_result = response.json()
+        json_result["name"] = "Carrot stew"
+        json_result["ingredients"] = ["Carrot 10 units"]
+        pk = json_result["pk"]
+
+        response = await client.post(f"/update_recipe/{pk}", data=json_result)
+
+        assert response.text == external("uuid:6020747d-93b4-4204-a629-05d1397c361c.txt")
+
+    async def test_update_recipe_error(self, client: AsyncClient, carrots_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        json_result = response.json()
+        json_result["ingredients"] = ["Carrot x units"]
+        pk = json_result["pk"]
+
+        response = await client.post(f"/update_recipe/{pk}", data=json_result)
+
+        assert response.text == external("uuid:5082a7a0-a5fb-4135-a0ea-2923a83f682b.txt")
+
+    async def test_edit_recipe(self, client: AsyncClient, carrots_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        json_result = response.json()
+        pk = json_result["pk"]
+
+        response = await client.get(f"/recipe/{pk}/edit")
+
+        assert response.text == external("uuid:1c790be2-234d-4760-a157-e9f5674bc83e.txt")
 
 
 class TestNewRecipeAPI:
