@@ -130,6 +130,17 @@ class RecipeRepository:
         await self.session.flush()
         return existing_recipe
 
+    async def is_like(self, snippet: str) -> list[StoredRecipe]:
+        """Gets any recipes that are like the snippet given."""
+        stmt = (
+            select(StoredRecipe)
+            .filter(StoredRecipe.name.ilike(f"%{snippet}%"))
+            .options(joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient))
+        )
+        stmt_result = await self.session.scalars(stmt)
+
+        return list(stmt_result.unique().fetchall())
+
 
 def get_recipe_repo(session: AsyncSession = Depends(get_db)) -> RecipeRepository:  # noqa: B008
     """Gets the recipe repository using dependency injection."""

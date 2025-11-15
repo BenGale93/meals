@@ -320,6 +320,34 @@ class TestRecipesAPI:
             }
         )
 
+    async def test_is_like_recipe(self, client: AsyncClient, carrots_recipe, sweets_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response = await client.post("/api/v1/recipes", json=sweets_recipe.model_dump())
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response = await client.get("/api/v1/recipes/like/", params={"snippet": "Car"})
+
+        assert response.status_code == status.HTTP_200_OK
+
+        recipes = Recipes.model_validate(response.json())
+
+        assert recipes == snap(
+            Recipes(
+                root=[
+                    RecipeResponse(
+                        pk=1,
+                        name="Carrot Surprise",
+                        ingredients=[IngredientResponse(pk=1, name="Carrot", quantity=10.0, unit="units")],
+                        instructions="Test instructions",
+                    )
+                ]
+            )
+        )
+
 
 class TestTimingsAPI:
     async def test_create_only_one(self, client: AsyncClient, dummy_timings):

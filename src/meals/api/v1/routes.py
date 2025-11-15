@@ -61,6 +61,14 @@ async def update_recipe(data: schemas.UpdateRecipeRequest, repo: RecipeRepo) -> 
     return schemas.RecipeResponse.model_validate(recipe)
 
 
+@router.get("/recipes/like/", status_code=status.HTTP_200_OK)
+async def get_recipe_like(snippet: str, repo: RecipeRepo) -> schemas.Recipes:
+    """Get a recipe by snippet."""
+    recipes = await repo.is_like(snippet)
+
+    return schemas.Recipes.model_validate(recipes)
+
+
 @router.post("/timings", status_code=status.HTTP_201_CREATED)
 async def create_timings(data: schemas.TimingsCreate, repo: TimingRepo) -> schemas.TimingsResponse:
     """Creates the timings in the given database."""
