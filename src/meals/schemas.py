@@ -2,7 +2,7 @@
 
 import re
 import typing as t
-from datetime import time  # noqa: TC003
+from datetime import date, time  # noqa: TC003
 
 from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
 
@@ -124,3 +124,29 @@ class TimingsResponse(BaseModel):
     pk: int | None
     steps: TimingSteps
     finish_time: time
+
+
+class PlannedRecipe(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    pk: int
+    name: str
+
+
+class PlannedDay(BaseModel):
+    day: date
+    meal: PlannedRecipe
+
+
+class PlannedDayResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    pk: int
+    day: date
+    recipe: PlannedRecipe | None
+
+
+class RecipeSummary(BaseModel):
+    name: str
+    count: int
+    last_eaten: date | None

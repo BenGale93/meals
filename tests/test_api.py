@@ -1,10 +1,19 @@
-from datetime import time
+import datetime
 from typing import TYPE_CHECKING
 
 from fastapi import status
 from inline_snapshot import snapshot as snap
 
-from meals.schemas import CreateIngredientRequest, IngredientResponse, RecipeResponse, Recipes, UpdateRecipeRequest
+from meals.schemas import (
+    CreateIngredientRequest,
+    IngredientResponse,
+    PlannedDayResponse,
+    PlannedRecipe,
+    RecipeResponse,
+    Recipes,
+    RecipeSummary,
+    UpdateRecipeRequest,
+)
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -383,7 +392,7 @@ class TestTimingsAPI:
 
         assert pk is not None
 
-        dummy_timings.finish_time = time(12, 0, 0)
+        dummy_timings.finish_time = datetime.time(12, 0, 0)
         timings_json = dummy_timings.model_dump()
         response = await client.patch("/api/v1/timings", json=timings_json)
         response_json = response.json()
@@ -399,3 +408,131 @@ class TestTimingsAPI:
         response_json = response.json()
         assert response_json["steps"] == timings_json["steps"]
         assert response_json["finish_time"] == timings_json["finish_time"]
+
+
+class TestPlannedDayAPI:
+    async def test_update_recipe(self, client: AsyncClient, take_away, carrots_recipe):
+        recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        _ = await client.post("/api/v1/recipes", json=take_away.model_dump())
+
+        recipe = recipe_response.json()
+
+        response = await client.post(
+            "/api/v1/planned_day",
+            json={
+                "day": "2025-01-01",
+                "meal": {"pk": recipe["pk"], "name": recipe["name"]},
+            },
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        plan = PlannedDayResponse.model_validate(response.json())
+
+        assert plan == snap(
+            PlannedDayResponse(pk=1, day=datetime.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise"))
+        )
+
+    async def test_double_update(self, client: AsyncClient, take_away, carrots_recipe):
+        recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        meal_response = await client.post("/api/v1/recipes", json=take_away.model_dump())
+
+        meal = meal_response.json()
+
+        response = await client.post(
+            "/api/v1/planned_day",
+            json={
+                "day": "2025-01-01",
+                "meal": {"pk": meal["pk"], "name": meal["name"]},
+            },
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        plan = PlannedDayResponse.model_validate(response.json())
+
+        assert plan == snap(
+            PlannedDayResponse(pk=1, day=datetime.date(2025, 1, 1), recipe=PlannedRecipe(pk=2, name="Take Away"))
+        )
+
+        recipe = recipe_response.json()
+
+        response = await client.post(
+            "/api/v1/planned_day",
+            json={
+                "day": "2025-01-01",
+                "meal": {"pk": recipe["pk"], "name": recipe["name"]},
+            },
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        plan = PlannedDayResponse.model_validate(response.json())
+
+        assert plan == snap(
+            PlannedDayResponse(pk=1, day=datetime.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise"))
+        )
+
+    async def test_get_range(self, client: AsyncClient, carrots_recipe):
+        recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        recipe = recipe_response.json()
+
+        for day in ["2025-01-01", "2025-02-01", "2025-03-01"]:
+            _ = await client.post(
+                "/api/v1/planned_day",
+                json={
+                    "day": day,
+                    "meal": {"pk": recipe["pk"], "name": recipe["name"]},
+                },
+            )
+
+        response = await client.get(
+            "/api/v1/planned_day", params={"start_date": "2025-01-01", "end_date": "2025-02-20"}
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        plan = [PlannedDayResponse.model_validate(d) for d in response.json()]
+
+        assert plan == snap(
+            [
+                PlannedDayResponse(
+                    pk=1, day=datetime.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise")
+                ),
+                PlannedDayResponse(
+                    pk=2, day=datetime.date(2025, 2, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise")
+                ),
+            ]
+        )
+
+    async def test_summarise(self, client: AsyncClient, take_away, carrots_recipe):
+        recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        _ = await client.post("/api/v1/recipes", json=take_away.model_dump())
+
+        recipe = recipe_response.json()
+
+        _ = await client.post(
+            "/api/v1/planned_day",
+            json={
+                "day": "2025-01-01",
+                "meal": {"pk": recipe["pk"], "name": recipe["name"]},
+            },
+        )
+        _ = await client.post(
+            "/api/v1/planned_day",
+            json={
+                "day": "2025-01-02",
+                "meal": {"pk": recipe["pk"], "name": recipe["name"]},
+            },
+        )
+
+        summary_response = await client.get("/api/v1/planned_day/summary/")
+
+        summary = [RecipeSummary.model_validate(s) for s in summary_response.json()]
+
+        assert summary == snap(
+            [
+                RecipeSummary(name="Carrot Surprise", count=2, last_eaten=datetime.date(2025, 1, 2)),
+                RecipeSummary(name="Take Away", count=0, last_eaten=None),
+            ]
+        )

@@ -1,8 +1,8 @@
 """Tables used by the application."""
 
-from datetime import time  # noqa: TC003
+from datetime import date, time  # noqa: TC003
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text, Time
+from sqlalchemy import Date, Float, ForeignKey, Integer, String, Text, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from meals.database.session import Base
@@ -20,6 +20,8 @@ class StoredRecipe(Base):
         "RecipeIngredient", back_populates="recipe", cascade="all, delete-orphan", uselist=True, lazy="selectin"
     )
 
+    planned: Mapped[list[StoredPlannedDay]] = relationship(back_populates="recipe")
+
     def __repr__(self) -> str:  # noqa: D105
         return f"<Recipe(pk={self.pk}, name={self.name})>"
 
@@ -31,7 +33,7 @@ class StoredIngredient(Base):
     pk: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
 
-    recipes: Mapped[list[StoredRecipe]] = relationship(
+    recipes: Mapped[list[RecipeIngredient]] = relationship(
         "RecipeIngredient", back_populates="ingredient", cascade="all, delete-orphan", uselist=True, lazy="selectin"
     )
 
@@ -64,3 +66,16 @@ class StoredTimings(Base):
     pk: Mapped[int] = mapped_column(Integer, primary_key=True)
     finish_time: Mapped[time] = mapped_column(Time, nullable=False)
     steps: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class StoredPlannedDay(Base):
+    """Table for planned days."""
+
+    __tablename__ = "planned_days"
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True)
+    day: Mapped[date] = mapped_column(Date, nullable=False, unique=True)
+
+    recipe_pk: Mapped[int] = mapped_column(ForeignKey("recipes.pk"))
+
+    recipe: Mapped[StoredRecipe] = relationship(back_populates="planned")

@@ -1,10 +1,16 @@
 """The routes for the data API."""
 
+from datetime import date  # noqa: TC003
+
 from fastapi import APIRouter, HTTPException, status
 
 from meals import schemas
-from meals.database.repository import RecipeRepo, TimingRepo  # noqa: TC001
-from meals.exceptions import RecipeAlreadyExistsError, RecipeDoesNotExistError, TimingAlreadyExistsError
+from meals.database.repository import PlanRepo, RecipeRepo, TimingRepo  # noqa: TC001
+from meals.exceptions import (
+    RecipeAlreadyExistsError,
+    RecipeDoesNotExistError,
+    TimingAlreadyExistsError,
+)
 
 router = APIRouter(prefix="/v1", tags=["v1"])
 
@@ -103,3 +109,27 @@ async def update_timings(timings_data: schemas.TimingsCreate, repo: TimingRepo) 
     steps = schemas.TimingSteps.model_validate_json(timings.steps)
 
     return schemas.TimingsResponse(pk=timings.pk, steps=steps, finish_time=timings.finish_time)
+
+
+@router.post("/planned_day", status_code=status.HTTP_201_CREATED)
+async def update_planned_day(data: schemas.PlannedDay, repo: PlanRepo) -> schemas.PlannedDayResponse:
+    """Update the planned day."""
+    new_plan = await repo.update(data)
+
+    return schemas.PlannedDayResponse.model_validate(new_plan)
+
+
+@router.get("/planned_day", status_code=status.HTTP_200_OK)
+async def get_plans(start_date: date, end_date: date, repo: PlanRepo) -> list[schemas.PlannedDayResponse]:
+    """Get the plans over the given range."""
+    planned_days = await repo.get_range(start_date, end_date)
+
+    return [schemas.PlannedDayResponse.model_validate(d) for d in planned_days]
+
+
+@router.get("/planned_day/summary/", status_code=status.HTTP_200_OK)
+async def plan_summary(repo: PlanRepo) -> list[schemas.RecipeSummary]:
+    """Get the plans over the given range."""
+    summary = await repo.summarise()
+
+    return [schemas.RecipeSummary(name=s[0], count=s[1], last_eaten=s[2]) for s in summary]

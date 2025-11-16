@@ -3,16 +3,28 @@
 import typing as t
 
 from fastapi import Depends
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 from sqlalchemy.orm import joinedload
 
-from meals.database.models import RecipeIngredient, StoredIngredient, StoredRecipe, StoredTimings
+from meals.database.models import (
+    RecipeIngredient,
+    StoredIngredient,
+    StoredPlannedDay,
+    StoredRecipe,
+    StoredTimings,
+)
 from meals.database.session import get_db
-from meals.exceptions import RecipeAlreadyExistsError, RecipeDoesNotExistError, TimingAlreadyExistsError
+from meals.exceptions import (
+    RecipeAlreadyExistsError,
+    RecipeDoesNotExistError,
+    TimingAlreadyExistsError,
+)
 
 if t.TYPE_CHECKING:
-    from meals.schemas import CreateRecipeRequest, TimingsCreate, UpdateRecipeRequest
+    from datetime import date
+
+    from meals.schemas import CreateRecipeRequest, PlannedDay, TimingsCreate, UpdateRecipeRequest
 
 
 class RecipeRepository:
@@ -202,3 +214,63 @@ def get_timings_repo(session: AsyncSession = Depends(get_db)) -> TimingsReposito
 
 
 TimingRepo = t.Annotated[TimingsRepository, Depends(get_timings_repo)]
+
+
+class PlanRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        """Initialise with an async database session."""
+        self.session = session
+
+    async def update(self, planned_day: PlannedDay) -> StoredPlannedDay:
+        """Update the planned day."""
+        stmt = select(StoredPlannedDay).filter_by(day=planned_day.day).limit(1)
+
+        stmt_result = await self.session.scalars(stmt)
+        planned = stmt_result.first()
+
+        if planned is None:
+            planned = StoredPlannedDay(day=planned_day.day)
+            self.session.add(planned)
+
+        planned.recipe_pk = planned_day.meal.pk
+
+        await self.session.flush()
+
+        stmt = select(StoredPlannedDay).filter_by(pk=planned.pk).options(joinedload(StoredPlannedDay.recipe))
+        refreshed_plan = await self.session.scalars(stmt)
+        return refreshed_plan.one()
+
+    async def get_range(self, start_date: date, end_date: date) -> list[StoredPlannedDay]:
+        """Get the meal plans between the two dates."""
+        stmt = (
+            select(StoredPlannedDay)
+            .filter(StoredPlannedDay.day.between(start_date, end_date))
+            .options(joinedload(StoredPlannedDay.recipe))
+        )
+        stmt_result = await self.session.scalars(stmt)
+        return list(stmt_result.fetchall())
+
+    async def summarise(self) -> list[tuple[str, int, date | None]]:
+        """Summarise past meals."""
+        stmt = (
+            select(
+                StoredRecipe.name,
+                func.count(StoredPlannedDay.pk),
+                func.max(StoredPlannedDay.day),
+            )
+            .join(StoredPlannedDay, isouter=True)
+            .group_by(StoredRecipe.name)
+            .order_by(StoredRecipe.name)
+        )
+
+        result = await self.session.execute(stmt)
+
+        return list(result.fetchall())  # type: ignore [arg-type]
+
+
+def get_plan_repo(session: AsyncSession = Depends(get_db)) -> PlanRepository:  # noqa: B008
+    """Gets the plan repository using dependency injection."""
+    return PlanRepository(session)
+
+
+PlanRepo = t.Annotated[PlanRepository, Depends(get_plan_repo)]
