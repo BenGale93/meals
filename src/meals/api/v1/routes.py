@@ -21,9 +21,9 @@ async def create_recipe(data: schemas.CreateRecipeRequest, repo: RecipeRepo) -> 
 
 
 @router.get("/recipes", status_code=status.HTTP_200_OK)
-async def get_recipes(repo: RecipeRepo) -> schemas.Recipes:
+async def get_recipes(repo: RecipeRepo, *, has_ingredients: bool = True) -> schemas.Recipes:
     """Get all the recipe in the database."""
-    recipes = await repo.get_all()
+    recipes = await repo.get_all(has_ingredients=has_ingredients)
 
     return schemas.Recipes.model_validate(recipes)
 

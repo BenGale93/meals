@@ -62,6 +62,17 @@ def sweets_recipe():
 
 
 @pytest.fixture
+def take_away():
+    return CreateRecipeRequest.model_validate(
+        {
+            "name": "Take Away",
+            "instructions": "",
+            "ingredients": [],
+        }
+    )
+
+
+@pytest.fixture
 def dummy_timings():
     return TimingsCreate(
         steps=TimingSteps([RecipeStep(description="Start", offset=-60), RecipeStep(description="Finish", offset=0)]),

@@ -31,6 +31,8 @@ class RecipeRepository:
             raise RecipeAlreadyExistsError
 
         stored_recipe = StoredRecipe(name=recipe_data.name, instructions=recipe_data.instructions)
+        if len(recipe_data.ingredients) == 0:
+            stored_recipe.ingredients = []
 
         with self.session.no_autoflush:
             for ing in recipe_data.ingredients:
@@ -68,14 +70,22 @@ class RecipeRepository:
 
         return recipe
 
-    async def get_all(self) -> list[StoredRecipe]:
-        """Gets all the recipes."""
+    async def get_all(self, *, has_ingredients: bool = True) -> list[StoredRecipe]:
+        """Gets all the recipes.
+
+        Args:
+            has_ingredients: Whether to only get recipe that have some ingredients.
+        """
         stmt = select(StoredRecipe).options(
             joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient)
         )
         stmt_result = await self.session.scalars(stmt)
 
-        return list(stmt_result.unique().fetchall())
+        recipes = list(stmt_result.unique().fetchall())
+
+        if has_ingredients:
+            return [r for r in recipes if len(r.ingredients) > 0]
+        return recipes
 
     async def update(self, recipe_data: UpdateRecipeRequest) -> StoredRecipe:
         """Update an existing recipe."""

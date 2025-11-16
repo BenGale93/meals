@@ -84,12 +84,16 @@ class TestRecipesAPI:
             )
         )
 
-    async def test_get_all_recipes(self, client: AsyncClient, carrots_recipe, sweets_recipe):
+    async def test_get_all_recipes(self, client: AsyncClient, carrots_recipe, sweets_recipe, take_away):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
 
         assert response.status_code == status.HTTP_201_CREATED
 
         response = await client.post("/api/v1/recipes", json=sweets_recipe.model_dump())
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response = await client.post("/api/v1/recipes", json=take_away.model_dump())
 
         assert response.status_code == status.HTTP_201_CREATED
 
@@ -114,6 +118,47 @@ class TestRecipesAPI:
                         ingredients=[IngredientResponse(pk=2, name="sweets", quantity=50.0, unit="units")],
                         instructions="More test instructions",
                     ),
+                ]
+            )
+        )
+
+    async def test_get_all_recipes_even_without_ingredients(
+        self, client: AsyncClient, carrots_recipe, sweets_recipe, take_away
+    ):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response = await client.post("/api/v1/recipes", json=sweets_recipe.model_dump())
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response = await client.post("/api/v1/recipes", json=take_away.model_dump())
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response = await client.get("/api/v1/recipes", params={"has_ingredients": False})
+
+        assert response.status_code == status.HTTP_200_OK
+
+        recipes = Recipes.model_validate(response.json())
+
+        assert recipes == snap(
+            Recipes(
+                root=[
+                    RecipeResponse(
+                        pk=1,
+                        name="Carrot Surprise",
+                        ingredients=[IngredientResponse(pk=1, name="Carrot", quantity=10.0, unit="units")],
+                        instructions="Test instructions",
+                    ),
+                    RecipeResponse(
+                        pk=2,
+                        name="Sweets",
+                        ingredients=[IngredientResponse(pk=2, name="sweets", quantity=50.0, unit="units")],
+                        instructions="More test instructions",
+                    ),
+                    RecipeResponse(pk=3, name="Take Away", ingredients=[], instructions=""),
                 ]
             )
         )
