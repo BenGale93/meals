@@ -126,7 +126,18 @@ def summary_table(summaries: list[RecipeSummary]) -> html.section:
         )
 
     return html.section(
-        html.h2("Recipe Summary", class_="text-xl font-semibold text-gray-800 mb-4"),
+        html.div(
+            html.h2("Recipe Summary", class_="text-xl font-semibold text-gray-800 mb-4"),
+            html.button(
+                "Refresh",
+                type="submit",
+                class_="px-3 py-1 mb-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition",
+                hx_get="/summary",
+                hx_swap="outerHTML",
+                hx_target="#recipe-summary",
+            ),
+            class_="flex justify-between",
+        ),
         html.table(
             html.thead(
                 html.tr(
@@ -140,6 +151,7 @@ def summary_table(summaries: list[RecipeSummary]) -> html.section:
             class_="min-w-full bg-white border border-gray-300 rounded-lg shadow-sm",
         ),
         class_="max-w-3xl mx-auto mt-6 p-4",
+        id="recipe-summary",
     )
 
 
