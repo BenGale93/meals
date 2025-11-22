@@ -135,7 +135,7 @@ class PlannedRecipe(BaseModel):
 
 class PlannedDay(BaseModel):
     day: date
-    meal: PlannedRecipe
+    recipe: PlannedRecipe
 
 
 class PlannedDayResponse(BaseModel):
@@ -144,6 +144,17 @@ class PlannedDayResponse(BaseModel):
     pk: int
     day: date
     recipe: PlannedRecipe | None
+
+
+class DayToPlan(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    day: date
+    recipe: PlannedRecipe | None
+
+
+class PlannedDays(RootModel[list[DayToPlan]]):
+    pass
 
 
 class RecipeSummary(BaseModel):

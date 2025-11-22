@@ -88,8 +88,10 @@ class RecipeRepository:
         Args:
             has_ingredients: Whether to only get recipe that have some ingredients.
         """
-        stmt = select(StoredRecipe).options(
-            joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient)
+        stmt = (
+            select(StoredRecipe)
+            .options(joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient))
+            .order_by(StoredRecipe.name)
         )
         stmt_result = await self.session.scalars(stmt)
 
@@ -232,7 +234,7 @@ class PlanRepository:
             planned = StoredPlannedDay(day=planned_day.day)
             self.session.add(planned)
 
-        planned.recipe_pk = planned_day.meal.pk
+        planned.recipe_pk = planned_day.recipe.pk
 
         await self.session.flush()
 

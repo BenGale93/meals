@@ -51,6 +51,17 @@ def carrots_recipe():
 
 
 @pytest.fixture
+def pasta_recipe():
+    return CreateRecipeRequest.model_validate(
+        {
+            "name": "Pasta",
+            "instructions": "Test instructions for pasta",
+            "ingredients": [{"name": "Pasta", "quantity": 1.0, "unit": "kg"}],
+        }
+    )
+
+
+@pytest.fixture
 def sweets_recipe():
     return CreateRecipeRequest.model_validate(
         {

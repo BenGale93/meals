@@ -29,11 +29,12 @@
 <nav class="hidden md:flex space-x-6">
 <a href="/" class="text-green-700 hover:text-green-800 font-medium transition">Recipes</a>
 <a href="/new.html" class="text-green-700 hover:text-green-800 font-medium transition">New Recipe</a>
+<a href="/plan.html" class="text-green-700 hover:text-green-800 font-medium transition">Planner</a>
 <a href="/timings.html" class="text-green-700 hover:text-green-800 font-medium transition">Timings</a>
 </nav>
 <nav x-show="open" x-transition="" class="md:hidden bg-white border-t border-gray-100 shadow-inner">
 <ul class="flex flex-col p-4 space-y-2">
-<li ><a href="/" class="block text-green-700 font-medium p-2 rounded-lg hover:bg-green-50 transition">Recipes</a><a href="/new.html" class="block text-green-700 font-medium p-2 rounded-lg hover:bg-green-50 transition">New Recipe</a><a href="/timings.html" class="block text-green-700 font-medium p-2 rounded-lg hover:bg-green-50 transition">Timings</a></li>
+<li ><a href="/" class="block text-green-700 font-medium p-2 rounded-lg hover:bg-green-50 transition">Recipes</a><a href="/new.html" class="block text-green-700 font-medium p-2 rounded-lg hover:bg-green-50 transition">New Recipe</a><a href="/plan.html" class="block text-green-700 font-medium p-2 rounded-lg hover:bg-green-50 transition">Planner</a><a href="/timings.html" class="block text-green-700 font-medium p-2 rounded-lg hover:bg-green-50 transition">Timings</a></li>
 </ul>
 </nav>
 </div>

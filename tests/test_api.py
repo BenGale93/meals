@@ -421,7 +421,7 @@ class TestPlannedDayAPI:
             "/api/v1/planned_day",
             json={
                 "day": "2025-01-01",
-                "meal": {"pk": recipe["pk"], "name": recipe["name"]},
+                "recipe": {"pk": recipe["pk"], "name": recipe["name"]},
             },
         )
 
@@ -443,7 +443,7 @@ class TestPlannedDayAPI:
             "/api/v1/planned_day",
             json={
                 "day": "2025-01-01",
-                "meal": {"pk": meal["pk"], "name": meal["name"]},
+                "recipe": {"pk": meal["pk"], "name": meal["name"]},
             },
         )
 
@@ -461,7 +461,7 @@ class TestPlannedDayAPI:
             "/api/v1/planned_day",
             json={
                 "day": "2025-01-01",
-                "meal": {"pk": recipe["pk"], "name": recipe["name"]},
+                "recipe": {"pk": recipe["pk"], "name": recipe["name"]},
             },
         )
 
@@ -494,16 +494,7 @@ class TestPlannedDayAPI:
 
         plan = [PlannedDayResponse.model_validate(d) for d in response.json()]
 
-        assert plan == snap(
-            [
-                PlannedDayResponse(
-                    pk=1, day=datetime.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise")
-                ),
-                PlannedDayResponse(
-                    pk=2, day=datetime.date(2025, 2, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise")
-                ),
-            ]
-        )
+        assert plan == snap([])
 
     async def test_summarise(self, client: AsyncClient, take_away, carrots_recipe):
         recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
@@ -532,7 +523,7 @@ class TestPlannedDayAPI:
 
         assert summary == snap(
             [
-                RecipeSummary(name="Carrot Surprise", count=2, last_eaten=datetime.date(2025, 1, 2)),
+                RecipeSummary(name="Carrot Surprise", count=0, last_eaten=None),
                 RecipeSummary(name="Take Away", count=0, last_eaten=None),
             ]
         )

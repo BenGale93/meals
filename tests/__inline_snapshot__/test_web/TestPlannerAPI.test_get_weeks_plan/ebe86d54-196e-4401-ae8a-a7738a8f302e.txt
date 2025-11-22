@@ -1,0 +1,80 @@
+<table class="min-w-full bg-white border border-gray-300 rounded-lg shadow-sm">
+<thead class="bg-gray-100">
+<tr >
+<th class="px-4 py-2 text-left text-gray-600">Date</th>
+<th class="px-4 py-2 text-left text-gray-600">Meal</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-200">
+<tr class="hover:bg-gray-50">
+<td class="px-4 py-3">Saturday<input value="2025-11-22" name="day" type="hidden"/></td>
+<td class="px-4 py-3"><div class="flex items-center space-x-2">
+<input list="meal-list-0" name="meal" value="Carrot Surprise" hx-get="/meals" hx-target="#meal-list-0" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
+<datalist id="meal-list-0"></datalist>
+<button type="submit" class="px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition" hx-post="/planned_day" hx-swap="none" hx-include="closest tr">
+Update
+</button>
+</div></td>
+</tr>
+<tr class="hover:bg-gray-50">
+<td class="px-4 py-3">Sunday<input value="2025-11-23" name="day" type="hidden"/></td>
+<td class="px-4 py-3"><div class="flex items-center space-x-2">
+<input list="meal-list-1" name="meal" value="" hx-get="/meals" hx-target="#meal-list-1" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
+<datalist id="meal-list-1"></datalist>
+<button type="submit" class="px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition" hx-post="/planned_day" hx-swap="none" hx-include="closest tr">
+Update
+</button>
+</div></td>
+</tr>
+<tr class="hover:bg-gray-50">
+<td class="px-4 py-3">Monday<input value="2025-11-24" name="day" type="hidden"/></td>
+<td class="px-4 py-3"><div class="flex items-center space-x-2">
+<input list="meal-list-2" name="meal" value="" hx-get="/meals" hx-target="#meal-list-2" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
+<datalist id="meal-list-2"></datalist>
+<button type="submit" class="px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition" hx-post="/planned_day" hx-swap="none" hx-include="closest tr">
+Update
+</button>
+</div></td>
+</tr>
+<tr class="hover:bg-gray-50">
+<td class="px-4 py-3">Tuesday<input value="2025-11-25" name="day" type="hidden"/></td>
+<td class="px-4 py-3"><div class="flex items-center space-x-2">
+<input list="meal-list-3" name="meal" value="" hx-get="/meals" hx-target="#meal-list-3" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
+<datalist id="meal-list-3"></datalist>
+<button type="submit" class="px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition" hx-post="/planned_day" hx-swap="none" hx-include="closest tr">
+Update
+</button>
+</div></td>
+</tr>
+<tr class="hover:bg-gray-50">
+<td class="px-4 py-3">Wednesday<input value="2025-11-26" name="day" type="hidden"/></td>
+<td class="px-4 py-3"><div class="flex items-center space-x-2">
+<input list="meal-list-4" name="meal" value="" hx-get="/meals" hx-target="#meal-list-4" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
+<datalist id="meal-list-4"></datalist>
+<button type="submit" class="px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition" hx-post="/planned_day" hx-swap="none" hx-include="closest tr">
+Update
+</button>
+</div></td>
+</tr>
+<tr class="hover:bg-gray-50">
+<td class="px-4 py-3">Thursday<input value="2025-11-27" name="day" type="hidden"/></td>
+<td class="px-4 py-3"><div class="flex items-center space-x-2">
+<input list="meal-list-5" name="meal" value="" hx-get="/meals" hx-target="#meal-list-5" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
+<datalist id="meal-list-5"></datalist>
+<button type="submit" class="px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition" hx-post="/planned_day" hx-swap="none" hx-include="closest tr">
+Update
+</button>
+</div></td>
+</tr>
+<tr class="hover:bg-gray-50">
+<td class="px-4 py-3">Friday<input value="2025-11-28" name="day" type="hidden"/></td>
+<td class="px-4 py-3"><div class="flex items-center space-x-2">
+<input list="meal-list-6" name="meal" value="" hx-get="/meals" hx-target="#meal-list-6" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
+<datalist id="meal-list-6"></datalist>
+<button type="submit" class="px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition" hx-post="/planned_day" hx-swap="none" hx-include="closest tr">
+Update
+</button>
+</div></td>
+</tr>
+</tbody>
+</table>

@@ -39,45 +39,46 @@
 </nav>
 </div>
 </header>
+<div >
 <main class="max-w-3xl mx-auto p-6 mt-8 bg-white shadow-md rounded-2xl">
-<h1 class="text-2xl font-bold text-green-700 mb-6">Create a New Recipe</h1>
-<form hx-post="/new_recipe" hx-target="#form-result" hx-swap="innerHTML" class="space-y-6" x-data="{ ingredients: [''] }">
-<div >
-<label class="block font-semibold mb-1" for="name">
-Recipe Name
-</label>
-<input id="name" name="name" type="text" required="" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
-</div>
-<div >
-<label class="block font-semibold mb-1">
-Ingredients
-</label>
-<template x-for="(ingredient, index) in ingredients" :key="index">
-<div class="flex items-center mb-2 space-x-2">
-<input type="text" name="ingredients" x-model="ingredients[index]" placeholder="Flour 2 cups" class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
-<button type="button" @click="ingredients.splice(index, 1)" x-show="ingredients.length &gt; 1" class="text-red-500 hover:text-red-700 font-bold text-xl">
-×
-</button>
-</div>
-</template>
-<button type="button" @click="ingredients.push('')" class="mt-2 px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition">
-+ Add Ingredient
-</button>
-<div >
-<label class="block font-semibold mb-1" for="instructions">
-Instructions
-</label>
-<textarea id="instructions" name="instructions" rows="6" required="" placeholder="Describe the preparation steps here..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"></textarea>
-</div>
-<div class="text-right">
-<button type="submit" class="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition">
-Save Recipe
-</button>
-</div>
-</div>
-</form>
-<div id="form-result" class="mt-6"></div>
+<h1 class="text-2xl font-bold text-green-700 mb-6">Weekly Meal Plan</h1>
+<div hx-get="/weeks_plan" hx-trigger="load" hx-swap="outerHTML"></div>
+<div hx-get="/summary" hx-trigger="load" hx-swap="outerHTML"></div>
 </main>
+<script >
+
+function checkUserKeydown(event) {
+  return event instanceof KeyboardEvent
+}
+
+document.body.addEventListener('show-success', function(evt) {
+    const button = evt.detail.elt;
+    const originalText = button.innerHTML;
+    button.innerHTML = 'Updated!';
+    button.classList.remove('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+    button.classList.add('bg-blue-100', 'text-blue-700');
+    setTimeout(function() {
+        button.innerHTML = originalText;
+        button.classList.remove('bg-blue-100', 'text-blue-700');
+        button.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+    }, 2000);
+});
+
+document.body.addEventListener('show-error', function(evt) {
+    const button = evt.detail.elt;
+    const originalText = button.innerHTML;
+    button.innerHTML = 'Error!';
+    button.classList.remove('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+    button.classList.add('bg-red-100', 'text-red-700');
+    setTimeout(function() {
+        button.innerHTML = originalText;
+        button.classList.remove('bg-red-100', 'text-red-700');
+        button.classList.add('bg-green-100', 'text-green-700', 'hover:bg-green-200');
+    }, 2000);
+});
+
+</script>
+</div>
 <button id="topButton" class="fixed bottom-6 right-6 bg-green-600 text-white p-3 rounded-full shadow-lg hover:bg-green-700 transition z-50" x-show="showTop" x-transition="" @click="window.scrollTo({ top: 0, behavior: 'smooth' })">
 ↑
 </button>
