@@ -67,7 +67,7 @@ Ingredients
 <label class="block font-semibold mb-1" for="instructions">
 Instructions
 </label>
-<textarea id="instructions" name="instructions" rows="6" required="" placeholder="Describe the preparation steps here..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"></textarea>
+<textarea id="instructions" name="instructions" rows="6" placeholder="Describe the preparation steps here..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"></textarea>
 </div>
 <div class="text-right">
 <button type="submit" class="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition">

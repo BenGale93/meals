@@ -40,6 +40,8 @@ def format_new_recipe_error(error: ErrorDetails) -> str:
         case ("ingredients", number, *_) if isinstance(number, int):
             number = number + 1
             return f"Issue with ingredient {number}: {msg}"
+        case ():
+            return msg
         case _:  # pragma: no cover # If we knew how to trigger this, we would handle it better
             return f"Unknown error: {error}"
 
@@ -103,7 +105,6 @@ def instructions_input() -> html.div:
             id="instructions",
             name="instructions",
             rows="6",
-            required="",
             placeholder="Describe the preparation steps here...",
             class_="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none",
         ),
@@ -169,11 +170,12 @@ async def new_recipe(
     name: t.Annotated[str, Form()],
     instructions: t.Annotated[str, Form()],
     repo: RecipeRepo,
-    ingredients: t.Annotated[list[str], Form()],
+    ingredients: t.Annotated[list[str], Form(default_factory=list)],
 ) -> RecipeResponse:
     """Create a new recipe using a form."""
+    valid_ingredients = [i for i in ingredients if i]
     recipe_data = CreateRecipeRequest.model_validate(
-        {"name": name, "ingredients": ingredients, "instructions": instructions}
+        {"name": name, "ingredients": valid_ingredients, "instructions": instructions}
     )
     recipe = await repo.create(recipe_data)
 

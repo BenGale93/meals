@@ -143,6 +143,46 @@ class TestNewRecipeAPI:
 
         assert response.text == external("uuid:9d7c702c-8859-4660-812c-7797f6bdc57b.txt")
 
+    async def test_new_recipe_no_ingredients_no_instructions(self, client: AsyncClient):
+        new_recipe = {"name": "Test", "ingredients": [], "instructions": ""}
+        response = await client.post("/new_recipe", data=new_recipe)
+
+        assert response.status_code == status.HTTP_200_OK
+
+        check = await client.get("/api/v1/recipes/", params={"name": "Test"})
+        pk = check.json().get("pk")
+        assert pk is not None
+
+    async def test_new_recipe_blank_ingredients_no_instructions(self, client: AsyncClient):
+        new_recipe = {"name": "Test", "ingredients": [""], "instructions": ""}
+        response = await client.post("/new_recipe", data=new_recipe)
+
+        assert response.status_code == status.HTTP_200_OK
+
+        check = await client.get("/api/v1/recipes/", params={"name": "Test"})
+        pk = check.json().get("pk")
+        assert pk is not None
+
+    async def test_new_recipe_no_instructions_fails(self, client: AsyncClient):
+        new_recipe = {"name": "Test", "ingredients": ["Flour 2 cups"], "instructions": ""}
+        response = await client.post("/new_recipe", data=new_recipe)
+
+        assert response.status_code == status.HTTP_200_OK
+
+        check = await client.get("/api/v1/recipes/", params={"name": "Test"})
+        pk = check.json().get("pk")
+        assert pk is None
+
+    async def test_new_recipe_no_ingredients_fails(self, client: AsyncClient):
+        new_recipe = {"name": "Test", "ingredients": [], "instructions": "Test steps"}
+        response = await client.post("/new_recipe", data=new_recipe)
+
+        assert response.status_code == status.HTTP_200_OK
+
+        check = await client.get("/api/v1/recipes/", params={"name": "Test"})
+        pk = check.json().get("pk")
+        assert pk is None
+
 
 class TestTimingsAPI:
     async def test_get_index(self, client: AsyncClient):

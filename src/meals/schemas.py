@@ -52,6 +52,14 @@ class CreateRecipeRequest(BaseModel):
     ingredients: list[CreateIngredientRequest]
     instructions: str
 
+    @model_validator(mode="after")
+    def both_or_neither_ingredients_and_instructions(self) -> CreateRecipeRequest:
+        """Validator to ensure we have all or none of the ingredients and instructions."""
+        if bool(self.ingredients) ^ bool(self.instructions):
+            msg = "Either both ingredients and instructions are required, or neither."
+            raise ValueError(msg)
+        return self
+
 
 class RecipeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
