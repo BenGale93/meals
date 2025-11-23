@@ -6,6 +6,7 @@ from datetime import time
 from fastapi import Form
 from htmy import Component, html
 
+from meals.auth import CurrentUser  # noqa: TC001
 from meals.database.repository import TimingRepo  # noqa: TC001
 from meals.schemas import (
     RecipeStep,
@@ -202,9 +203,9 @@ async def timings() -> None:
 
 @router.get("/timings")
 @htmy_renderer.page(timings_div)
-async def get_timings(repo: TimingRepo) -> TimingsResponse:
+async def get_timings(repo: TimingRepo, user: CurrentUser) -> TimingsResponse:
     """Get the timings as HTML."""
-    timings = await repo.get()
+    timings = await repo.get(user.pk)
 
     if timings is None:
         return TimingsResponse(
@@ -220,10 +221,10 @@ async def get_timings(repo: TimingRepo) -> TimingsResponse:
 @router.patch("/timings")
 @htmy_renderer.page(update_timings_div, error_component_selector=failed_to_update_timings_div)
 async def update_timings(
-    finish_time: t.Annotated[str, Form()], steps: t.Annotated[str, Form()], repo: TimingRepo
+    finish_time: t.Annotated[str, Form()], steps: t.Annotated[str, Form()], repo: TimingRepo, user: CurrentUser
 ) -> None:
     """Get the timings as HTML."""
     timings_data = TimingsCreate.model_validate(
         {"finish_time": finish_time, "steps": TimingSteps.model_validate_json(steps)}
     )
-    await repo.update(timings_data)
+    await repo.update(timings_data, user.pk)

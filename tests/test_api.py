@@ -1,3 +1,4 @@
+import base64
 import datetime
 from typing import TYPE_CHECKING
 
@@ -24,6 +25,22 @@ class TestHealthAPI:
         response = await client.get("/health")
 
         assert response.status_code == status.HTTP_200_OK
+
+
+class TestUsersAPI:
+    async def test_cant_create_same_user(self, client: AsyncClient, user_one):
+        response = await client.post("/api/v1/users", json=user_one.model_dump())
+
+        assert response.status_code == status.HTTP_409_CONFLICT
+
+    async def test_read_me(self, client: AsyncClient):
+        response = await client.get("/api/v1/users/me")
+
+        assert response.status_code == status.HTTP_200_OK
+
+        user = response.json()
+
+        assert user["user_name"] == snap("User One")
 
 
 class TestRecipesAPI:
@@ -356,6 +373,23 @@ class TestRecipesAPI:
                 ]
             )
         )
+
+    async def test_create_fails_if_not_a_user(self, bad_client: AsyncClient, carrots_recipe):
+        headers = {"Authorization": "Basic " + base64.b64encode(b"fake:test").decode()}
+        response = await bad_client.post("/api/v1/recipes", json=carrots_recipe.model_dump(), headers=headers)
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    async def test_get_fails_if_wrong_user(self, client: AsyncClient, user_two_client: AsyncClient, carrots_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        pk = response.json().get("pk")
+
+        response = await user_two_client.get(f"/api/v1/recipes/{pk}")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 class TestTimingsAPI:

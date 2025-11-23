@@ -8,12 +8,22 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from meals.app import app
 from meals.database.session import Base, get_db
-from meals.schemas import CreateRecipeRequest, RecipeStep, TimingsCreate, TimingSteps
+from meals.schemas import CreateRecipeRequest, CreateUserRequest, RecipeStep, TimingsCreate, TimingSteps
+
+
+@pytest.fixture
+def user_one():
+    return CreateUserRequest(user_name="User One")
+
+
+@pytest.fixture
+def user_two():
+    return CreateUserRequest(user_name="User Two")
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    engine = create_async_engine("sqlite+aiosqlite:///test.db")
+async def db_session(tmp_path):
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/test.db")
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -32,10 +42,29 @@ def test_app(db_session: AsyncSession) -> t.Any:
 
 
 @pytest_asyncio.fixture()
-async def client(test_app):
+async def client(test_app, user_one):
     """Create an http client."""
     transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test", headers=user_one.auth_headers()) as client:
+        _ = await client.post("/api/v1/users", json=user_one.model_dump())
+        yield client
+
+
+@pytest_asyncio.fixture()
+async def bad_client(test_app, user_one):
+    """Create an unauthenticated http client."""
+    transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        _ = await client.post("/api/v1/users", json=user_one.model_dump())
+        yield client
+
+
+@pytest_asyncio.fixture()
+async def user_two_client(test_app, user_two):
+    """Create an unauthenticated http client."""
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test", headers=user_two.auth_headers()) as client:
+        _ = await client.post("/api/v1/users", json=user_two.model_dump())
         yield client
 
 

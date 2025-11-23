@@ -1,5 +1,6 @@
 """Module containing all the meal schemas."""
 
+import base64
 import re
 import typing as t
 from datetime import date, time  # noqa: TC003
@@ -7,6 +8,21 @@ from datetime import date, time  # noqa: TC003
 from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
 
 INGREDIENT_REGEX = re.compile(r"([a-zA-Z ]+)([\d.]+)([a-zA-Z ]+)")
+
+
+class CreateUserRequest(BaseModel):
+    user_name: str
+
+    def auth_headers(self) -> dict[str, str]:
+        """Returns auth headers for the user."""
+        return {"Authorization": "Basic " + base64.b64encode(f"{self.user_name}:test".encode()).decode()}
+
+
+class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    pk: int
+    user_name: str
 
 
 class CreateIngredientRequest(BaseModel):

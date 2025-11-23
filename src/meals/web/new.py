@@ -6,6 +6,7 @@ from fastapi import Form
 from htmy import Component, ComponentType, html
 from pydantic import ValidationError
 
+from meals.auth import CurrentUser  # noqa: TC001
 from meals.database.repository import RecipeRepo  # noqa: TC001
 from meals.exceptions import RecipeAlreadyExistsError
 from meals.schemas import CreateRecipeRequest, RecipeResponse
@@ -171,12 +172,13 @@ async def new_recipe(
     instructions: t.Annotated[str, Form()],
     repo: RecipeRepo,
     ingredients: t.Annotated[list[str], Form(default_factory=list)],
+    user: CurrentUser,
 ) -> RecipeResponse:
     """Create a new recipe using a form."""
     valid_ingredients = [i for i in ingredients if i]
     recipe_data = CreateRecipeRequest.model_validate(
         {"name": name, "ingredients": valid_ingredients, "instructions": instructions}
     )
-    recipe = await repo.create(recipe_data)
+    recipe = await repo.create(recipe_data, user.pk)
 
     return RecipeResponse.model_validate(recipe)

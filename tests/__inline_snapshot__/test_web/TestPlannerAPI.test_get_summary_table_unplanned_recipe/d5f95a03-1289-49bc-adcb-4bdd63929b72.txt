@@ -17,7 +17,7 @@ Refresh
 <tr class="hover:bg-gray-50">
 <td class="px-4 py-3">Carrot Surprise</td>
 <td class="px-4 py-3">1</td>
-<td class="px-4 py-3">2025-11-22</td>
+<td class="px-4 py-3">2020-01-01</td>
 </tr>
 <tr class="hover:bg-gray-50">
 <td class="px-4 py-3">Pasta</td>

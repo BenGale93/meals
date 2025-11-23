@@ -8,6 +8,20 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from meals.database.session import Base
 
 
+class User(Base):
+    """Table for users."""
+
+    __tablename__ = "users"
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+
+    recipes: Mapped[list[StoredRecipe]] = relationship("StoredRecipe", back_populates="user", cascade="all, delete")
+    timings: Mapped[StoredTimings] = relationship("StoredTimings", back_populates="user", cascade="all, delete")
+    planned_days: Mapped[list[StoredPlannedDay]] = relationship(
+        "StoredPlannedDay", back_populates="user", cascade="all, delete"
+    )
+
+
 class StoredRecipe(Base):
     """Table for recipes."""
 
@@ -19,6 +33,9 @@ class StoredRecipe(Base):
     ingredients: Mapped[list[RecipeIngredient]] = relationship(
         "RecipeIngredient", back_populates="recipe", cascade="all, delete-orphan", uselist=True, lazy="selectin"
     )
+
+    user_pk: Mapped[int] = mapped_column(Integer, ForeignKey("users.pk"), nullable=False)
+    user: Mapped[User] = relationship(back_populates="recipes")
 
     planned: Mapped[list[StoredPlannedDay]] = relationship(back_populates="recipe")
 
@@ -67,6 +84,12 @@ class StoredTimings(Base):
     finish_time: Mapped[time] = mapped_column(Time, nullable=False)
     steps: Mapped[str] = mapped_column(String, nullable=False)
 
+    user_pk: Mapped[int] = mapped_column(Integer, ForeignKey("users.pk"), nullable=False)
+    user: Mapped[User] = relationship(back_populates="timings")
+
+    def __repr__(self) -> str:  # noqa: D105
+        return f"<StoredTimings(pk={self.pk}, finish_time={self.finish_time})>"
+
 
 class StoredPlannedDay(Base):
     """Table for planned days."""
@@ -79,3 +102,6 @@ class StoredPlannedDay(Base):
     recipe_pk: Mapped[int] = mapped_column(ForeignKey("recipes.pk"))
 
     recipe: Mapped[StoredRecipe] = relationship(back_populates="planned")
+
+    user_pk: Mapped[int] = mapped_column(Integer, ForeignKey("users.pk"), nullable=False)
+    user: Mapped[User] = relationship(back_populates="planned_days")

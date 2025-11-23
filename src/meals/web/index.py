@@ -5,6 +5,7 @@ import typing as t
 from fastapi import Form
 from htmy import Component, html
 
+from meals.auth import CurrentUser  # noqa: TC001
 from meals.database.repository import RecipeRepo  # noqa: TC001
 from meals.schemas import IngredientResponse, RecipeResponse, Recipes, UpdateRecipeRequest
 from meals.web.core import PageRegistry, editable_recipe_section, htmy_renderer, page, router
@@ -165,53 +166,54 @@ async def index() -> None:
 
 @router.get("/recipes")
 @htmy_renderer.page(recipes_div)
-async def get_recipes(repo: RecipeRepo) -> Recipes:
+async def get_recipes(repo: RecipeRepo, user: CurrentUser) -> Recipes:
     """Get the recipes as HTML."""
-    recipes = await repo.get_all()
+    recipes = await repo.get_all(user.pk)
 
     return Recipes.model_validate(recipes)
 
 
 @router.get("/recipe_list")
 @htmy_renderer.page(recipe_names)
-async def recipe_list(repo: RecipeRepo) -> Recipes:
+async def recipe_list(repo: RecipeRepo, user: CurrentUser) -> Recipes:
     """Get the recipes as HTML."""
-    recipes = await repo.get_all()
+    recipes = await repo.get_all(user.pk)
 
     return Recipes.model_validate(recipes)
 
 
 @router.post("/update_recipe/{pk}", response_model=None)
 @htmy_renderer.page(editable_recipe_section, error_component_selector=update_recipe_error)
-async def update_recipe(
+async def update_recipe(  # noqa: PLR0913
     pk: int,
     name: t.Annotated[str, Form()],
     instructions: t.Annotated[str, Form()],
     repo: RecipeRepo,
     ingredients: t.Annotated[list[str], Form()],
+    user: CurrentUser,
 ) -> RecipeResponse:
     """Create a new recipe using a form."""
     recipe_data = UpdateRecipeRequest.model_validate(
         {"pk": pk, "name": name, "ingredients": ingredients, "instructions": instructions}
     )
-    recipe = await repo.update(recipe_data)
+    recipe = await repo.update(recipe_data, user.pk)
 
     return RecipeResponse.model_validate(recipe)
 
 
 @router.get("/recipe/{pk}/edit", response_model=None)
 @htmy_renderer.page(edit_recipe_div)
-async def edit_recipe(pk: int, repo: RecipeRepo) -> RecipeResponse:
+async def edit_recipe(pk: int, repo: RecipeRepo, user: CurrentUser) -> RecipeResponse:
     """Create a new recipe using a form."""
-    recipe = await repo.get(pk)
+    recipe = await repo.get(pk, user.pk)
 
     return RecipeResponse.model_validate(recipe)
 
 
 @router.get("/recipe/{pk}", response_model=None)
 @htmy_renderer.page(editable_recipe_section)
-async def get_recipe(pk: int, repo: RecipeRepo) -> RecipeResponse:
+async def get_recipe(pk: int, repo: RecipeRepo, user: CurrentUser) -> RecipeResponse:
     """Create a new recipe using a form."""
-    recipe = await repo.get(pk)
+    recipe = await repo.get(pk, user.pk)
 
     return RecipeResponse.model_validate(recipe)

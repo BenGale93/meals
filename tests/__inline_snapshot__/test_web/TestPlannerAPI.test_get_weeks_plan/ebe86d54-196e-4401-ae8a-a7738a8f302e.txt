@@ -7,7 +7,7 @@
 </thead>
 <tbody class="divide-y divide-gray-200">
 <tr class="hover:bg-gray-50">
-<td class="px-4 py-3">Saturday<input value="2025-11-22" name="day" type="hidden"/></td>
+<td class="px-4 py-3">Wednesday<input value="2020-01-01" name="day" type="hidden"/></td>
 <td class="px-4 py-3"><div class="flex items-center space-x-2">
 <input list="meal-list-0" name="meal" value="Carrot Surprise" hx-get="/meals" hx-target="#meal-list-0" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
 <datalist id="meal-list-0"></datalist>
@@ -17,7 +17,7 @@ Update
 </div></td>
 </tr>
 <tr class="hover:bg-gray-50">
-<td class="px-4 py-3">Sunday<input value="2025-11-23" name="day" type="hidden"/></td>
+<td class="px-4 py-3">Thursday<input value="2020-01-02" name="day" type="hidden"/></td>
 <td class="px-4 py-3"><div class="flex items-center space-x-2">
 <input list="meal-list-1" name="meal" value="" hx-get="/meals" hx-target="#meal-list-1" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
 <datalist id="meal-list-1"></datalist>
@@ -27,7 +27,7 @@ Update
 </div></td>
 </tr>
 <tr class="hover:bg-gray-50">
-<td class="px-4 py-3">Monday<input value="2025-11-24" name="day" type="hidden"/></td>
+<td class="px-4 py-3">Friday<input value="2020-01-03" name="day" type="hidden"/></td>
 <td class="px-4 py-3"><div class="flex items-center space-x-2">
 <input list="meal-list-2" name="meal" value="" hx-get="/meals" hx-target="#meal-list-2" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
 <datalist id="meal-list-2"></datalist>
@@ -37,7 +37,7 @@ Update
 </div></td>
 </tr>
 <tr class="hover:bg-gray-50">
-<td class="px-4 py-3">Tuesday<input value="2025-11-25" name="day" type="hidden"/></td>
+<td class="px-4 py-3">Saturday<input value="2020-01-04" name="day" type="hidden"/></td>
 <td class="px-4 py-3"><div class="flex items-center space-x-2">
 <input list="meal-list-3" name="meal" value="" hx-get="/meals" hx-target="#meal-list-3" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
 <datalist id="meal-list-3"></datalist>
@@ -47,7 +47,7 @@ Update
 </div></td>
 </tr>
 <tr class="hover:bg-gray-50">
-<td class="px-4 py-3">Wednesday<input value="2025-11-26" name="day" type="hidden"/></td>
+<td class="px-4 py-3">Sunday<input value="2020-01-05" name="day" type="hidden"/></td>
 <td class="px-4 py-3"><div class="flex items-center space-x-2">
 <input list="meal-list-4" name="meal" value="" hx-get="/meals" hx-target="#meal-list-4" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
 <datalist id="meal-list-4"></datalist>
@@ -57,7 +57,7 @@ Update
 </div></td>
 </tr>
 <tr class="hover:bg-gray-50">
-<td class="px-4 py-3">Thursday<input value="2025-11-27" name="day" type="hidden"/></td>
+<td class="px-4 py-3">Monday<input value="2020-01-06" name="day" type="hidden"/></td>
 <td class="px-4 py-3"><div class="flex items-center space-x-2">
 <input list="meal-list-5" name="meal" value="" hx-get="/meals" hx-target="#meal-list-5" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
 <datalist id="meal-list-5"></datalist>
@@ -67,7 +67,7 @@ Update
 </div></td>
 </tr>
 <tr class="hover:bg-gray-50">
-<td class="px-4 py-3">Friday<input value="2025-11-28" name="day" type="hidden"/></td>
+<td class="px-4 py-3">Tuesday<input value="2020-01-07" name="day" type="hidden"/></td>
 <td class="px-4 py-3"><div class="flex items-center space-x-2">
 <input list="meal-list-6" name="meal" value="" hx-get="/meals" hx-target="#meal-list-6" hx-trigger="keyup[checkUserKeydown.call(this, event)] changed delay:25ms" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"/>
 <datalist id="meal-list-6"></datalist>
