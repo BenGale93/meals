@@ -46,7 +46,8 @@ async def client(test_app, user_one):
     """Create an http client."""
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test", headers=user_one.auth_headers()) as client:
-        _ = await client.post("/api/v1/users", json=user_one.model_dump())
+        response = await client.post("/api/v1/users", json=user_one.model_dump())
+        response.raise_for_status()
         yield client
 
 
@@ -55,7 +56,8 @@ async def bad_client(test_app, user_one):
     """Create an unauthenticated http client."""
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        _ = await client.post("/api/v1/users", json=user_one.model_dump())
+        response = await client.post("/api/v1/users", json=user_one.model_dump())
+        response.raise_for_status()
         yield client
 
 
@@ -64,7 +66,8 @@ async def user_two_client(test_app, user_two):
     """Create an unauthenticated http client."""
     transport = ASGITransport(app=test_app)
     async with AsyncClient(transport=transport, base_url="http://test", headers=user_two.auth_headers()) as client:
-        _ = await client.post("/api/v1/users", json=user_two.model_dump())
+        response = await client.post("/api/v1/users", json=user_two.model_dump())
+        response.raise_for_status()
         yield client
 
 

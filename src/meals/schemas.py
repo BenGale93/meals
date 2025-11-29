@@ -161,6 +161,11 @@ class PlannedDay(BaseModel):
     day: date
     recipe: PlannedRecipe
 
+    @field_serializer("day", mode="plain")
+    def day_to_str(self, value: date) -> str:
+        """Formats the day as a string."""
+        return value.isoformat()
+
 
 class PlannedDayResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

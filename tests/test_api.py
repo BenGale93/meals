@@ -2,12 +2,14 @@ import base64
 import datetime
 from typing import TYPE_CHECKING
 
+import time_machine
 from fastapi import status
 from inline_snapshot import snapshot as snap
 
 from meals.schemas import (
     CreateIngredientRequest,
     IngredientResponse,
+    PlannedDay,
     PlannedDayResponse,
     PlannedRecipe,
     RecipeResponse,
@@ -327,7 +329,9 @@ class TestRecipesAPI:
         self, client: AsyncClient, carrots_recipe, sweets_recipe
     ):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
-        _ = await client.post("/api/v1/recipes", json=sweets_recipe.model_dump())
+        response.raise_for_status()
+        response_2 = await client.post("/api/v1/recipes", json=sweets_recipe.model_dump())
+        response_2.raise_for_status()
 
         recipe = RecipeResponse.model_validate(response.json())
         recipe.ingredients.append(sweets_recipe.ingredients[0])
@@ -447,7 +451,8 @@ class TestTimingsAPI:
 class TestPlannedDayAPI:
     async def test_update_recipe(self, client: AsyncClient, take_away, carrots_recipe):
         recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
-        _ = await client.post("/api/v1/recipes", json=take_away.model_dump())
+        response = await client.post("/api/v1/recipes", json=take_away.model_dump())
+        response.raise_for_status()
 
         recipe = recipe_response.json()
 
@@ -510,16 +515,12 @@ class TestPlannedDayAPI:
     async def test_get_range(self, client: AsyncClient, carrots_recipe):
         recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
 
-        recipe = recipe_response.json()
+        recipe = PlannedRecipe.model_validate(recipe_response.json())
 
         for day in ["2025-01-01", "2025-02-01", "2025-03-01"]:
-            _ = await client.post(
-                "/api/v1/planned_day",
-                json={
-                    "day": day,
-                    "meal": {"pk": recipe["pk"], "name": recipe["name"]},
-                },
-            )
+            planned_day = PlannedDay(day=datetime.date.fromisoformat(day), recipe=recipe)
+            response = await client.post("/api/v1/planned_day", json=planned_day.model_dump())
+            response.raise_for_status()
 
         response = await client.get(
             "/api/v1/planned_day", params={"start_date": "2025-01-01", "end_date": "2025-02-20"}
@@ -528,28 +529,32 @@ class TestPlannedDayAPI:
 
         plan = [PlannedDayResponse.model_validate(d) for d in response.json()]
 
-        assert plan == snap([])
+        assert plan == snap(
+            [
+                PlannedDayResponse(
+                    pk=1, day=datetime.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise")
+                ),
+                PlannedDayResponse(
+                    pk=2, day=datetime.date(2025, 2, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise")
+                ),
+            ]
+        )
 
+    @time_machine.travel(datetime.date(2025, 1, 1))
     async def test_summarise(self, client: AsyncClient, take_away, carrots_recipe):
         recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
-        _ = await client.post("/api/v1/recipes", json=take_away.model_dump())
+        response = await client.post("/api/v1/recipes", json=take_away.model_dump())
+        response.raise_for_status()
 
-        recipe = recipe_response.json()
+        recipe = PlannedRecipe.model_validate(recipe_response.json())
+        planned_day = PlannedDay(day=datetime.date(2025, 1, 1), recipe=recipe)
 
-        _ = await client.post(
-            "/api/v1/planned_day",
-            json={
-                "day": "2025-01-01",
-                "meal": {"pk": recipe["pk"], "name": recipe["name"]},
-            },
-        )
-        _ = await client.post(
-            "/api/v1/planned_day",
-            json={
-                "day": "2025-01-02",
-                "meal": {"pk": recipe["pk"], "name": recipe["name"]},
-            },
-        )
+        response = await client.post("/api/v1/planned_day", json=planned_day.model_dump())
+        response.raise_for_status()
+
+        planned_day = PlannedDay(day=datetime.date(2025, 1, 2), recipe=recipe)
+        response = await client.post("/api/v1/planned_day", json=planned_day.model_dump())
+        response.raise_for_status()
 
         summary_response = await client.get("/api/v1/planned_day/summary/")
 
@@ -557,7 +562,7 @@ class TestPlannedDayAPI:
 
         assert summary == snap(
             [
-                RecipeSummary(name="Carrot Surprise", count=0, last_eaten=None),
+                RecipeSummary(name="Carrot Surprise", count=2, last_eaten=datetime.date(2025, 1, 2)),
                 RecipeSummary(name="Take Away", count=0, last_eaten=None),
             ]
         )

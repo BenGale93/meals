@@ -139,8 +139,10 @@ class TestNewRecipeAPI:
 
     async def test_recipe_exists(self, client: AsyncClient):
         new_recipe = {"name": "Test", "ingredients": ["Flour 2 cups"], "instructions": "Test steps"}
-        _ = await client.post("/new_recipe", data=new_recipe)
         response = await client.post("/new_recipe", data=new_recipe)
+        response.raise_for_status()
+        response = await client.post("/new_recipe", data=new_recipe)
+        response.raise_for_status()
 
         assert response.text == external("uuid:9d7c702c-8859-4660-812c-7797f6bdc57b.txt")
 
