@@ -7,6 +7,8 @@ from datetime import date, time  # noqa: TC003
 
 from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
 
+from meals.constants import LABEL_LENGTH
+
 INGREDIENT_REGEX = re.compile(r"([a-zA-Z ]+)([\d.]+)([a-zA-Z ]+)")
 
 
@@ -63,10 +65,22 @@ class IngredientResponse(BaseModel):
         return f"{self.name} {self.quantity} {self.unit}"
 
 
+def validate_unique_labels(labels: t.Iterable[CreateLabel]) -> None:
+    """Validator to ensure all labels are unique."""
+    seen_labels = set()
+    for label in labels:
+        label_key = (label.category, label.sub_category)
+        if label_key in seen_labels:
+            msg = f"Duplicate label detected: category='{label.category}', sub_category='{label.sub_category}'"
+            raise ValueError(msg)
+        seen_labels.add(label_key)
+
+
 class CreateRecipeRequest(BaseModel):
     name: str
     ingredients: list[CreateIngredientRequest]
     instructions: str
+    labels: list[CreateLabel] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def both_or_neither_ingredients_and_instructions(self) -> CreateRecipeRequest:
@@ -74,6 +88,12 @@ class CreateRecipeRequest(BaseModel):
         if bool(self.ingredients) ^ bool(self.instructions):
             msg = "Either both ingredients and instructions are required, or neither."
             raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def validate_unique_labels(self) -> t.Self:
+        """Validator to ensure all labels are unique."""
+        validate_unique_labels(self.labels)
         return self
 
 
@@ -84,6 +104,7 @@ class RecipeResponse(BaseModel):
     name: str
     ingredients: list[IngredientResponse]
     instructions: str
+    labels: list[RecipeLabelResponse] = Field(default_factory=list)
 
     @property
     def anchor(self) -> str:
@@ -96,13 +117,13 @@ class UpdateRecipeRequest(BaseModel):
     name: str
     ingredients: list[CreateIngredientRequest]
     instructions: str
+    labels: list[CreateLabel] = Field(default_factory=list)
 
-    def get_ingredient(self, name: str) -> CreateIngredientRequest | None:
-        """Get the ingredient by name."""
-        for i in self.ingredients:
-            if i.name == name:
-                return i
-        return None
+    @model_validator(mode="after")
+    def validate_unique_labels(self) -> t.Self:
+        """Validator to ensure all labels are unique."""
+        validate_unique_labels(self.labels)
+        return self
 
 
 class CreateRecipes(RootModel[list[CreateRecipeRequest]]):
@@ -119,6 +140,9 @@ class Recipes(RootModel[list[RecipeResponse]]):
 
     def __iter__(self) -> t.Iterator[RecipeResponse]:  # type: ignore [override]  # noqa: D105
         return iter(self.root)
+
+    def __len__(self) -> int:  # noqa: D105
+        return len(self.root)
 
 
 class RecipeStep(BaseModel):
@@ -190,3 +214,20 @@ class RecipeSummary(BaseModel):
     name: str
     count: int
     last_eaten: date | None
+
+
+class CreateLabel(BaseModel):
+    category: str = Field(..., min_length=1, max_length=LABEL_LENGTH)
+    sub_category: str = Field(..., min_length=1, max_length=LABEL_LENGTH)
+
+
+class RecipeLabelResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    pk: int
+
+    category: str = Field(validation_alias=AliasChoices(AliasPath("label", "category", "name"), AliasPath("category")))
+    sub_category: str = Field(validation_alias=AliasChoices(AliasPath("label", "name"), AliasPath("sub_category")))
+
+    def __str__(self) -> str:  # noqa: D105
+        return f"{self.category}::{self.sub_category}"

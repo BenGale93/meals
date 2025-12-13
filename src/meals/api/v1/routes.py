@@ -97,6 +97,20 @@ async def get_recipe_like(snippet: str, repo: RecipeRepo, user: CurrentUser) -> 
     return schemas.Recipes.model_validate(recipes)
 
 
+@router.post("/recipes/with_labels/", status_code=status.HTTP_200_OK)
+async def get_recipe_with_labels(
+    repo: RecipeRepo,
+    user: CurrentUser,
+    labels: list[schemas.CreateLabel] | None = None,
+) -> schemas.Recipes:
+    """Get recipes with the given labels."""
+    if not labels:
+        return schemas.Recipes([])
+    recipes = await repo.with_labels(labels, user_pk=user.pk)
+
+    return schemas.Recipes.model_validate(recipes)
+
+
 @router.post("/timings", status_code=status.HTTP_201_CREATED)
 async def create_timings(data: schemas.TimingsCreate, repo: TimingRepo, user: CurrentUser) -> schemas.TimingsResponse:
     """Creates the timings in the given database."""

@@ -3,16 +3,19 @@
 import typing as t
 
 from fastapi import Depends
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 from sqlalchemy.orm import joinedload
 
 from meals.database.models import (
+    Category,
     RecipeIngredient,
     StoredIngredient,
     StoredPlannedDay,
     StoredRecipe,
+    StoredRecipeLabel,
     StoredTimings,
+    SubCategory,
     User,
 )
 from meals.database.session import get_db
@@ -26,7 +29,14 @@ from meals.exceptions import (
 if t.TYPE_CHECKING:
     from datetime import date
 
-    from meals.schemas import CreateRecipeRequest, CreateUserRequest, PlannedDay, TimingsCreate, UpdateRecipeRequest
+    from meals.schemas import (
+        CreateLabel,
+        CreateRecipeRequest,
+        CreateUserRequest,
+        PlannedDay,
+        TimingsCreate,
+        UpdateRecipeRequest,
+    )
 
 
 class UserRepository:
@@ -72,49 +82,74 @@ class RecipeRepository:
         self.session = session
 
     async def create(self, recipe_data: CreateRecipeRequest, user_pk: int) -> StoredRecipe:
-        """Creates a new recipe throws an error."""
-        recipe_stmt = select(StoredRecipe).filter_by(name=recipe_data.name, user_pk=user_pk)
+        """Create a new recipe.
 
-        stmt_result = await self.session.scalars(recipe_stmt)
-        recipe = stmt_result.first()
-
-        if recipe:
+        Raises:
+            RecipeAlreadyExistsError
+        """
+        result = await self.session.scalars(
+            select(StoredRecipe).where(
+                StoredRecipe.name == recipe_data.name,
+                StoredRecipe.user_pk == user_pk,
+            )
+        )
+        if result.first():
             raise RecipeAlreadyExistsError
 
-        stored_recipe = StoredRecipe(name=recipe_data.name, instructions=recipe_data.instructions, user_pk=user_pk)
-        if len(recipe_data.ingredients) == 0:
-            stored_recipe.ingredients = []
+        recipe = StoredRecipe(
+            name=recipe_data.name,
+            instructions=recipe_data.instructions,
+            user_pk=user_pk,
+        )
 
-        with self.session.no_autoflush:
-            for ing in recipe_data.ingredients:
-                ing_stmt = select(StoredIngredient).filter_by(name=ing.name)
-                ing_stmt_result = await self.session.scalars(ing_stmt)
-                ingredient = ing_stmt_result.first()
-                if not ingredient:
-                    ingredient = StoredIngredient(name=ing.name)
-                    self.session.add(ingredient)
-                stored_recipe.ingredients.append(
-                    RecipeIngredient(ingredient=ingredient, quantity=ing.quantity, unit=ing.unit)
-                )
-
-        self.session.add(stored_recipe)
+        self.session.add(recipe)
         await self.session.flush()
-        return stored_recipe
+
+        for ing in recipe_data.ingredients:
+            ing_result = await self.session.scalars(select(StoredIngredient).where(StoredIngredient.name == ing.name))
+            ingredient = ing_result.first()
+
+            if not ingredient:
+                ingredient = StoredIngredient(name=ing.name)
+                self.session.add(ingredient)
+                await self.session.flush()
+
+            self.session.add(
+                RecipeIngredient(
+                    recipe_pk=recipe.pk,
+                    ingredient_pk=ingredient.pk,
+                    quantity=ing.quantity,
+                    unit=ing.unit,
+                )
+            )
+
+        label_pks = await self._resolve_label_pks(
+            [(label.category, label.sub_category) for label in recipe_data.labels]
+        )
+
+        for sub_pk in label_pks:
+            self.session.add(
+                StoredRecipeLabel(
+                    recipe_pk=recipe.pk,
+                    label_pk=sub_pk,
+                )
+            )
+
+        await self.session.flush()
+
+        stmt = self._join_fields(select(StoredRecipe).where(StoredRecipe.pk == recipe.pk))
+        result = await self.session.scalars(stmt)
+        return result.unique().one()
 
     async def get(self, pk: int, user_pk: int) -> StoredRecipe | None:
         """Get the recipe by the primary key."""
-        stmt = select(StoredRecipe).filter_by(pk=pk, user_pk=user_pk)
+        stmt = self._join_fields(select(StoredRecipe).filter_by(pk=pk, user_pk=user_pk).limit(1))
         stmt_result = await self.session.scalars(stmt)
         return stmt_result.first()
 
     async def get_by_name(self, name: str, user_pk: int) -> StoredRecipe | None:
         """Gets the recipe with a given name."""
-        stmt = (
-            select(StoredRecipe)
-            .filter_by(name=name, user_pk=user_pk)
-            .limit(1)
-            .options(joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient))
-        )
+        stmt = self._join_fields(select(StoredRecipe).filter_by(name=name, user_pk=user_pk).limit(1))
         stmt_result = await self.session.scalars(stmt)
         recipe = stmt_result.first()
 
@@ -130,12 +165,7 @@ class RecipeRepository:
             user_pk: The primary key of the user the recipe belong to.
             has_ingredients: Whether to only get recipe that have some ingredients.
         """
-        stmt = (
-            select(StoredRecipe)
-            .filter_by(user_pk=user_pk)
-            .options(joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient))
-            .order_by(StoredRecipe.name)
-        )
+        stmt = self._join_fields(select(StoredRecipe).filter_by(user_pk=user_pk)).order_by(StoredRecipe.name)
         stmt_result = await self.session.scalars(stmt)
 
         recipes = list(stmt_result.unique().fetchall())
@@ -146,57 +176,152 @@ class RecipeRepository:
 
     async def update(self, recipe_data: UpdateRecipeRequest, user_pk: int) -> StoredRecipe:
         """Update an existing recipe."""
-        existing_recipe = await self.get(recipe_data.pk, user_pk=user_pk)
-
-        if existing_recipe is None:
+        recipe = await self.get(recipe_data.pk, user_pk)
+        if recipe is None:
             raise RecipeDoesNotExistError
 
-        existing_recipe.name = recipe_data.name
-        existing_recipe.instructions = recipe_data.instructions
+        recipe.name = recipe_data.name
+        recipe.instructions = recipe_data.instructions
 
-        existing_ingredient_names = {i.ingredient.name for i in existing_recipe.ingredients}
-        new_ingredient_names = {i.name for i in recipe_data.ingredients}
+        # ---------- INGREDIENTS ----------
+        existing = {(i.ingredient.name): i for i in recipe.ingredients}
+        incoming = {ing.name: ing for ing in recipe_data.ingredients}
 
-        to_delete = existing_ingredient_names - new_ingredient_names
-        to_add = new_ingredient_names - existing_ingredient_names
-        to_update = existing_ingredient_names | new_ingredient_names
+        # delete removed
+        for name, ri in existing.items():
+            if name not in incoming:
+                await self.session.delete(ri)
 
-        for existing in existing_recipe.ingredients:
-            if existing.ingredient.name not in to_update:  # pragma: no cover # Not possible
-                continue
-            new_i = recipe_data.get_ingredient(existing.ingredient.name)
-            if new_i is not None:
-                existing.quantity = new_i.quantity
-                existing.unit = new_i.unit
+        # update / insert
+        for name, ing in incoming.items():
+            if name in existing:
+                ri = existing[name]
+                ri.quantity = ing.quantity
+                ri.unit = ing.unit
+            else:
+                result = await self.session.scalars(select(StoredIngredient).where(StoredIngredient.name == name))
+                ingredient = result.first()
+                if not ingredient:
+                    ingredient = StoredIngredient(name=name)
+                    self.session.add(ingredient)
+                    await self.session.flush()
 
-        existing_recipe.ingredients = [i for i in existing_recipe.ingredients if i.ingredient.name not in to_delete]
+                self.session.add(
+                    RecipeIngredient(
+                        recipe_pk=recipe.pk,
+                        ingredient_pk=ingredient.pk,
+                        quantity=ing.quantity,
+                        unit=ing.unit,
+                    )
+                )
 
-        for new in to_add:
-            new_i = recipe_data.get_ingredient(new)
-            if new_i is None:  # pragma: no cover # Not possible
-                continue
-            ing_stmt = select(StoredIngredient).filter_by(name=new_i.name)
-            ing_stmt_result = await self.session.scalars(ing_stmt)
-            ingredient = ing_stmt_result.first()
-            if not ingredient:
-                ingredient = StoredIngredient(name=new_i.name)
-                self.session.add(ingredient)
-            existing_recipe.ingredients.append(
-                RecipeIngredient(ingredient=ingredient, quantity=new_i.quantity, unit=new_i.unit)
+        # ---------- LABELS ----------
+        label_result = await self.session.scalars(
+            select(StoredRecipeLabel).where(StoredRecipeLabel.recipe_pk == recipe.pk)
+        )
+        existing_labels = label_result.all()
+
+        existing_label_map = {lbl.label_pk: lbl for lbl in existing_labels}
+
+        incoming_label_pks = set(
+            await self._resolve_label_pks([(label.category, label.sub_category) for label in recipe_data.labels])
+        )
+
+        existing_pks = set(existing_label_map.keys())
+
+        for pk in existing_pks - incoming_label_pks:
+            await self.session.delete(existing_label_map[pk])
+
+        for pk in incoming_label_pks - existing_pks:
+            self.session.add(
+                StoredRecipeLabel(
+                    recipe_pk=recipe.pk,
+                    label_pk=pk,
+                )
             )
+
         await self.session.flush()
-        return existing_recipe
+
+        stmt = self._join_fields(select(StoredRecipe).where(StoredRecipe.pk == recipe.pk))
+        recipe_result = await self.session.scalars(stmt)
+        return recipe_result.unique().one()
 
     async def is_like(self, snippet: str, user_pk: int) -> list[StoredRecipe]:
         """Gets any recipes that are like the snippet given."""
-        stmt = (
-            select(StoredRecipe)
-            .filter(StoredRecipe.name.ilike(f"%{snippet}%"), StoredRecipe.user_pk == user_pk)
-            .options(joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient))
+        stmt = self._join_fields(
+            select(StoredRecipe).filter(StoredRecipe.name.ilike(f"%{snippet}%"), StoredRecipe.user_pk == user_pk)
         )
         stmt_result = await self.session.scalars(stmt)
 
         return list(stmt_result.unique().fetchall())
+
+    async def with_labels(self, labels: list[CreateLabel], user_pk: int) -> list[StoredRecipe]:
+        """Gets all recipes with all of the given labels."""
+        if not labels:  # pragma: no cover # The route guards against empty lists
+            return []
+
+        label_tuples = [(label.category, label.sub_category) for label in labels]
+
+        stmt = (
+            select(StoredRecipe)
+            .filter(StoredRecipe.user_pk == user_pk)
+            .join(StoredRecipe.labels)
+            .join(StoredRecipeLabel.label)  # SubCategory
+            .join(SubCategory.category)  # Category
+            .where(tuple_(Category.name, SubCategory.name).in_(label_tuples))
+            .group_by(StoredRecipe.pk)
+            .having(func.count(func.distinct(SubCategory.pk)) == len(labels))
+        )
+        stmt = self._join_fields(stmt)
+        stmt_result = await self.session.scalars(stmt)
+
+        return list(stmt_result.unique().fetchall())
+
+    @staticmethod
+    def _join_fields(stmt: Select[tuple[StoredRecipe]]) -> Select[tuple[StoredRecipe]]:
+        return (
+            stmt.options(joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient))
+            .options(
+                joinedload(StoredRecipe.labels).subqueryload(StoredRecipeLabel.label).subqueryload(SubCategory.category)
+            )
+            .execution_options(populate_existing=True)
+        )
+
+    async def _resolve_label_pks(
+        self,
+        labels: list[tuple[str, str]],
+    ) -> list[int]:
+        sub_pks: list[int] = []
+
+        for category_name, sub_name in labels:
+            # CATEGORY
+            result = await self.session.scalars(select(Category.pk).where(Category.name == category_name))
+            category_pk = result.first()
+
+            if category_pk is None:
+                category = Category(name=category_name)
+                self.session.add(category)
+                await self.session.flush()
+                category_pk = category.pk
+
+            # SUB-CATEGORY
+            result = await self.session.scalars(
+                select(SubCategory.pk).where(
+                    SubCategory.name == sub_name,
+                    SubCategory.category_pk == category_pk,
+                )
+            )
+            sub_pk = result.first()
+
+            if sub_pk is None:
+                sub = SubCategory(name=sub_name, category_pk=category_pk)
+                self.session.add(sub)
+                await self.session.flush()
+                sub_pk = sub.pk
+
+            sub_pks.append(sub_pk)
+
+        return sub_pks
 
 
 def get_recipe_repo(session: AsyncSession = Depends(get_db)) -> RecipeRepository:  # noqa: B008

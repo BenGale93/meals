@@ -2,9 +2,10 @@
 
 from datetime import date, time  # noqa: TC003
 
-from sqlalchemy import Date, Float, ForeignKey, Integer, String, Text, Time
+from sqlalchemy import Date, Float, ForeignKey, Integer, String, Text, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from meals.constants import LABEL_LENGTH
 from meals.database.session import Base
 
 
@@ -38,6 +39,9 @@ class StoredRecipe(Base):
     user: Mapped[User] = relationship(back_populates="recipes")
 
     planned: Mapped[list[StoredPlannedDay]] = relationship(back_populates="recipe")
+    labels: Mapped[list[StoredRecipeLabel]] = relationship(
+        "StoredRecipeLabel", back_populates="recipe", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:  # noqa: D105
         return f"<Recipe(pk={self.pk}, name={self.name})>"
@@ -105,3 +109,46 @@ class StoredPlannedDay(Base):
 
     user_pk: Mapped[int] = mapped_column(Integer, ForeignKey("users.pk"), nullable=False)
     user: Mapped[User] = relationship(back_populates="planned_days")
+
+
+class Category(Base):
+    """Table for label categories."""
+
+    __tablename__ = "categories"
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(LABEL_LENGTH), unique=True)
+
+    sub_categories: Mapped[SubCategory] = relationship(
+        "SubCategory", back_populates="category", cascade="all, delete-orphan"
+    )
+
+
+class SubCategory(Base):
+    """Table for specific sub-categories."""
+
+    __tablename__ = "sub_categories"
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(LABEL_LENGTH))
+
+    category_pk: Mapped[int] = mapped_column(ForeignKey("categories.pk"))
+    category: Mapped[Category] = relationship("Category", back_populates="sub_categories")
+
+    recipe_labels: Mapped[list[StoredRecipeLabel]] = relationship(
+        "StoredRecipeLabel", back_populates="label", cascade="all, delete-orphan"
+    )
+
+
+class StoredRecipeLabel(Base):
+    """Table for specific recipe labels."""
+
+    __tablename__ = "recipe_labels"
+    __table_args__ = (UniqueConstraint("recipe_pk", "label_pk", name="_recipe_label_uc"),)
+
+    pk: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recipe_pk: Mapped[int] = mapped_column(ForeignKey("recipes.pk", ondelete="CASCADE"), nullable=False)
+    label_pk: Mapped[int] = mapped_column(ForeignKey("sub_categories.pk", ondelete="CASCADE"), nullable=False)
+
+    recipe: Mapped[StoredRecipe] = relationship("StoredRecipe", back_populates="labels")
+    label: Mapped[SubCategory] = relationship("SubCategory", back_populates="recipe_labels")

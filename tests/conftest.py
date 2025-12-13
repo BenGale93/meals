@@ -105,6 +105,36 @@ def sweets_recipe():
 
 
 @pytest.fixture
+def sausage_recipe():
+    return CreateRecipeRequest.model_validate(
+        {
+            "name": "Sausage and chips",
+            "instructions": "Make the sausage and chips",
+            "ingredients": [
+                {"name": "Sausage", "quantity": 6.0, "unit": "units"},
+                {"name": "Chips", "quantity": 800.0, "unit": "g"},
+            ],
+            "labels": [{"category": "meat", "sub_category": "pork"}],
+        }
+    )
+
+
+@pytest.fixture
+def burger_recipe():
+    return CreateRecipeRequest.model_validate(
+        {
+            "name": "Burger and chips",
+            "instructions": "Make the burger and chips",
+            "ingredients": [
+                {"name": "Burger", "quantity": 6.0, "unit": "units"},
+                {"name": "Chips", "quantity": 800.0, "unit": "g"},
+            ],
+            "labels": [{"category": "meat", "sub_category": "beef"}],
+        }
+    )
+
+
+@pytest.fixture
 def take_away():
     return CreateRecipeRequest.model_validate(
         {
