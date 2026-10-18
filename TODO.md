@@ -385,8 +385,7 @@ setting, and `deploy/meals.service` loads it via `EnvironmentFile=`. Tests are i
 
 The operational half is also done (2026-10-18): `/home/galeb/meals/.env` sets the absolute
 `DATABASE_URL`, the database was moved to `/home/galeb/meals-data/meals.db`, and the service
-was restarted and verified. See **Protect the live data** step 2 and migrate_plan.md
-section 4.
+was restarted and verified (see **Protect the live data** step 2).
 
 ### 4. Backups / export of `meals.db` — P1 (done)
 
@@ -543,43 +542,31 @@ Migrate deliberately, because mypy and pyrefly strict modes are not equivalent:
 
 The app is always running on the Pi, so rather than stopping it, editing the checkout, and
 hoping a migration works, build and validate a candidate copy **next to** the live app, then
-do a short cutover. This is the practical answer to "upgrade without risking the data or
-long downtime", and it composes with Admin items 1 and 2.
+do a short cutover. This is the practical answer to "upgrade without risking the data or long
+downtime", and it composes with Admin items 1 and 2.
 
 **Tooled:** `just candidate` starts/refreshes a candidate worktree on `:8001` against a copy
 of the live DB (`scripts/candidate.sh`, `deploy/meals-next.service`); `just candidate promote`
 takes a fresh live backup, fast-forwards the live checkout, restarts it (migrations run in
 `ExecStartPre`), health-checks and stops the candidate; `just candidate stop` / `clean` retire
-it. The numbered steps below are what that automates; the first real validation and cutover
-are still to be run.
+it. The first real validation and cutover are still to be run.
 
-1. Take a fresh backup of the live DB (see **Protect the live data**). The backup is what
-   makes the final swap reversible.
-2. Create a candidate directory (e.g. `/home/galeb/meals-next`) holding the new code and a
-   **copy** of the database. Only ever run one process against a given SQLite file — one
-   writer at a time — so the candidate must use its own copy, not the live file.
-3. Run migrations (Admin item 2) against the candidate copy, then start the candidate on a
-   different port, e.g.
-   `fastapi run src/main.py --host 0.0.0.0 --port 8001` (reload is off by default; `PORT`
-   can be set instead). Reach it over Tailscale at `http://<pi-tailscale-ip>:8001` and
-   exercise the changed flows against real data.
-4. Cut over: stop the live instance, put the migrated DB in the canonical path (or repoint
-   the new app at it via `DATABASE_URL`), and start the new instance on the normal port.
-   Because the new database was prepared ahead of time, the only downtime is the process
-   restart — seconds, not the length of a migration.
-5. Roll back by starting the previous checkout against the backup copy; keep the old
-   checkout and DB copy on disk until you're satisfied.
-6. Folded into tooling (done): `just candidate promote` is the one command and it stops the
-   candidate at cutover, freeing the temporary port; `just candidate clean` removes the
-   checkout, database copy and unit.
+How it works, and why it is shaped this way:
 
-Admin item 3 is done, so the candidate gets an explicit absolute `DATABASE_URL` and the live
-and candidate database files are unambiguous. The candidate port is only reachable on the
-tailnet, and the two instances never share a database file (the script refuses to start
-otherwise).
+- The candidate is a second git worktree (`/home/galeb/meals-next`) with its own `.env`, its
+  own **copy** of the database and port `8001`. Only one process may write a given SQLite
+  file, so the candidate never opens the live file; `scripts/candidate.sh` refuses to start it
+  if its `DATABASE_URL` resolves to the live path. The candidate installs runtime dependencies
+  only (`--no-dev`).
+- Migrations are exercised against the copy, where a failure costs nothing, before live is
+  touched.
+- `promote` migrates the **live** database in place after a fresh verified backup rather than
+  promoting the copy, because the live database may have changed since the copy was taken.
+  Downtime is the restart plus the migration.
+- Rollback is the previous commit plus the pre-cutover backup, both kept on disk.
 
-See `migrate_plan.md` for the ordered, executable version of this, including the
-prerequisite TODO items and the commands.
+The step-by-step procedure, the safety rules and the candidate smoke checklist are in
+`deploy/README.md` → "Side-by-side (blue/green) candidate".
 
 ---
 

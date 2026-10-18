@@ -6,7 +6,7 @@
 #   sudo systemctl enable --now meals
 #
 # Configuration (notably DATABASE_URL) is read from /home/galeb/meals/.env via
-# EnvironmentFile below — see .env.example and migrate_plan.md. The leading "-"
+# EnvironmentFile below — see .env.example and deploy/README.md. The leading "-"
 # means the unit still starts if .env does not exist yet.
 #
 # Schema: Alembic owns it (migrations/), so the app no longer creates tables at

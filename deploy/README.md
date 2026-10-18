@@ -59,8 +59,8 @@ rollback steps, then exits non-zero. It never rolls back automatically: restore 
 <previous commit>`, `uv sync --frozen`, and restart.
 
 Run `just` (lint, type-check, tests) on the development machine before pushing; the Pi does
-not run the test suite. For a risky schema change, prefer the side-by-side process in
-[`../migrate_plan.md`](../migrate_plan.md) — `just deploy` restarts in place.
+not run the test suite. For a risky schema change, prefer the side-by-side process below —
+`just deploy` restarts in place.
 
 ## Side-by-side (blue/green) candidate
 
@@ -96,7 +96,8 @@ backing it up. On failure the script prints the status, logs, previous commit, p
 backup path and rollback steps, and exits non-zero; the candidate stays up for comparison.
 
 Keep the copy fresh (re-run `just candidate`) if validation takes a while, and remember the
-candidate writes to the copy, never to live data.
+candidate writes to the copy, never to live data. Work through **What to check on the
+candidate** below before promoting.
 
 ## Migrations
 
@@ -110,9 +111,9 @@ just migrate                 # uv run alembic upgrade head, honouring .env
 The existing database predates Alembic, so it is **stamped** once instead of upgraded
 (`uv run alembic stamp head`). The baseline revision then counts as already applied and is
 never replayed; running it against the unstamped database fails with
-`table ingredients already exists`. This is safe to do as soon as this release is deployed
-(it only adds the `alembic_version` table) and is also folded into the first cutover in
-[`../migrate_plan.md`](../migrate_plan.md) section 4.
+`table ingredients already exists`. Stamping is safe at any time (it only adds the
+`alembic_version` table), but for a database that predates Alembic, stamp it **before**
+enabling `ExecStartPre=` or running `alembic upgrade head`.
 
 The live database was stamped when it was moved (2026-10-18). `meals.service` now runs
 `alembic upgrade head` as an `ExecStartPre=` step, so `systemctl restart meals` applies any
@@ -155,8 +156,54 @@ systemctl status meals --no-pager
 
 ## Upgrades and rollback
 
-Routine releases use `just deploy` (above). For risky schema changes, use `just candidate` to
-validate a copy on `:8001` and `just candidate promote` to cut over (see above, and
-[`../migrate_plan.md`](../migrate_plan.md)). Database safety rules (backup with SQLite's online
-backup API, never `cp` a live file, one writer per database file) are in
-[`../TODO.md`](../TODO.md) → "Protect the live data".
+Routine releases use `just deploy` (above); it backs up and restarts in place. For a risky
+schema change, use `just candidate` to validate a copy on `:8001` and `just candidate promote`
+to cut over (see above). Nothing rolls back automatically — on failure the scripts print the
+status, logs and steps, then exit non-zero.
+
+To undo a release by hand:
+
+```bash
+sudo systemctl stop meals
+git switch --detach <previous commit>
+uv sync --frozen
+sudo systemctl start meals
+```
+
+If the migration was not backward-compatible, also restore the database (see **Backups and
+restore**) before starting.
+
+### Safety rules
+
+- **One writer per SQLite file.** Never point two processes (live and candidate) at the same
+  database file. The candidate always uses its own copy, and `just candidate` refuses to start
+  if its `DATABASE_URL` resolves to the live file.
+- **The database path is explicit**, from the absolute `DATABASE_URL` in `.env`, never implied
+  by the working directory — that is what lets two instances coexist.
+- **Nothing irreversible happens on the live file.** Migrations are prepared and exercised on a
+  copy; the live database is only touched at cutover, and only after a fresh verified backup. A
+  backup is a point-in-time snapshot, so take a new one before every cutover rather than
+  reusing an old one.
+- **Every step is reversible**: before each cutover there is a fresh backup *and* the previous
+  code commit on disk. Rollback is a restart, not a rebuild.
+- **Freeze writes during the cutover window.** It is a single-user app: don't use it from the
+  moment the cutover backup is taken until the new instance passes its health check.
+- **One change per candidate.** Don't mix a dependency refresh, a tooling migration, and a
+  schema change in one cutover; validate them separately so a failure is attributable.
+
+### What to check on the candidate
+
+Before promoting, exercise the changed flows at `http://ben-pi:8001` against real data:
+
+- [ ] `/health` returns OK.
+- [ ] The recipe list shows the expected number of recipes (compare with the counts
+  `just candidate` printed for the copy).
+- [ ] Open a recipe, edit it, save; confirm the change persists and re-reads.
+- [ ] Planner: the current week renders and a planned day loads.
+- [ ] Recipe summary counts look right (watch Bug 6: future meals are counted).
+- [ ] The timings page saves (watch Bug 9: the `json-enc` extension is not loaded).
+- [ ] Any flow this release touches, exercised against real data.
+- [ ] No new errors in `journalctl -u meals-next`.
+
+The data-safety checklist these rules come from is in [`../TODO.md`](../TODO.md) →
+"Protect the live data".
