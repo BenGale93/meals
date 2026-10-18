@@ -489,6 +489,12 @@ item 11) so the two sources of change are not tangled, and do it on a branch wit
 full test suite and snapshot updates reviewed. Raise the lower bounds in `pyproject.toml`
 once the upgraded set is proven, to avoid silently resolving back to old versions.
 
+One concrete win from the pydantic bump: FastAPI 0.119.0 imports `pydantic.v1` at import
+time, so pydantic 2.12.3 emits `Core Pydantic V1 functionality isn't compatible with
+Python 3.14 or greater` on every start. Pydantic 2.14.1 no longer emits it (verified in an
+isolated environment with FastAPI 0.119.0); the app uses v2 models only, so the warning is
+cosmetic until then.
+
 ### 11. Migrate from mypy to pyrefly — P1
 
 The type checker of choice is now Pyrefly (v1.x; 1.4.0 at time of writing), and the
