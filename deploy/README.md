@@ -99,6 +99,8 @@ Keep the copy fresh (re-run `just candidate`) if validation takes a while, and r
 candidate writes to the copy, never to live data. Work through **What to check on the
 candidate** below before promoting.
 
+First exercised on the Pi 2026-10-18 (`just candidate` → `just candidate promote`).
+
 ## Migrations
 
 The schema is owned by Alembic (`migrations/`); the app no longer creates tables at

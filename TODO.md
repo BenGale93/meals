@@ -538,7 +538,7 @@ Migrate deliberately, because mypy and pyrefly strict modes are not equivalent:
    unused mypy ignores, then confirm `pyrefly check` stays clean with the coverage gate
    still passing.
 
-### 12. Run upgrades side-by-side (blue/green) rather than in place — P1 (tooled; first run pending)
+### 12. Run upgrades side-by-side (blue/green) rather than in place — P1 (done)
 
 The app is always running on the Pi, so rather than stopping it, editing the checkout, and
 hoping a migration works, build and validate a candidate copy **next to** the live app, then
@@ -549,7 +549,7 @@ downtime", and it composes with Admin items 1 and 2.
 of the live DB (`scripts/candidate.sh`, `deploy/meals-next.service`); `just candidate promote`
 takes a fresh live backup, fast-forwards the live checkout, restarts it (migrations run in
 `ExecStartPre`), health-checks and stops the candidate; `just candidate stop` / `clean` retire
-it. The first real validation and cutover are still to be run.
+it. Exercised on the Pi 2026-10-18 (`just candidate`, then `just candidate promote`).
 
 How it works, and why it is shaped this way:
 
