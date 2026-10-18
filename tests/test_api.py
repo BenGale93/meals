@@ -547,14 +547,12 @@ class TestPlannedDayAPI:
         response.raise_for_status()
 
         recipe = PlannedRecipe.model_validate(recipe_response.json())
-        planned_day = PlannedDay(day=datetime.date(2025, 1, 1), recipe=recipe)
 
-        response = await client.post("/api/v1/planned_day", json=planned_day.model_dump())
-        response.raise_for_status()
-
-        planned_day = PlannedDay(day=datetime.date(2025, 1, 2), recipe=recipe)
-        response = await client.post("/api/v1/planned_day", json=planned_day.model_dump())
-        response.raise_for_status()
+        # Plan a meal for today and another for a future date: only today's meal counts.
+        for day in [datetime.date(2025, 1, 1), datetime.date(2025, 1, 8)]:
+            planned_day = PlannedDay(day=day, recipe=recipe)
+            response = await client.post("/api/v1/planned_day", json=planned_day.model_dump())
+            response.raise_for_status()
 
         summary_response = await client.get("/api/v1/planned_day/summary/")
 
@@ -562,7 +560,7 @@ class TestPlannedDayAPI:
 
         assert summary == snap(
             [
-                RecipeSummary(name="Carrot Surprise", count=2, last_eaten=datetime.date(2025, 1, 2)),
+                RecipeSummary(name="Carrot Surprise", count=1, last_eaten=datetime.date(2025, 1, 1)),
                 RecipeSummary(name="Take Away", count=0, last_eaten=None),
             ]
         )

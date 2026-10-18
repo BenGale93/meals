@@ -1,6 +1,7 @@
 """Repository module for interacting with the database session."""
 
 import typing as t
+from datetime import date
 
 from fastapi import Depends
 from sqlalchemy import func, select
@@ -24,8 +25,6 @@ from meals.exceptions import (
 )
 
 if t.TYPE_CHECKING:
-    from datetime import date
-
     from meals.schemas import CreateRecipeRequest, CreateUserRequest, PlannedDay, TimingsCreate, UpdateRecipeRequest
 
 
@@ -304,7 +303,7 @@ class PlanRepository:
         return list(stmt_result.fetchall())
 
     async def summarise(self, user_pk: int) -> list[tuple[str, int, date | None]]:
-        """Summarise past meals."""
+        """Summarise meals that have already been eaten."""
         stmt = (
             select(
                 StoredRecipe.name,
@@ -312,7 +311,11 @@ class PlanRepository:
                 func.max(StoredPlannedDay.day),
             )
             .filter_by(user_pk=user_pk)
-            .join(StoredPlannedDay, isouter=True)
+            .join(
+                StoredPlannedDay,
+                (StoredPlannedDay.recipe_pk == StoredRecipe.pk) & (StoredPlannedDay.day <= date.today()),
+                isouter=True,
+            )
             .group_by(StoredRecipe.name)
             .order_by(StoredRecipe.name)
         )
