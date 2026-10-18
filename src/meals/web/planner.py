@@ -1,14 +1,14 @@
 """The meal planner page."""
 
 import typing as t
-from datetime import date, timedelta
+from datetime import date  # noqa: TC003
 
 from fastapi import Form, Response
 from htmy import Component, html
 
 from meals.auth import CurrentUser  # noqa: TC001
-from meals.database.repository import PlanRepo, RecipeRepo  # noqa: TC001
-from meals.schemas import DayToPlan, PlannedDay, PlannedDays, PlannedRecipe, RecipeSummary
+from meals.schemas import PlannedDays, RecipeSummary  # noqa: TC001
+from meals.services import PlanServiceDep, RecipeServiceDep  # noqa: TC001
 from meals.web.core import PageRegistry, htmy_renderer, page, router
 
 PAGE_NAME = "Planner"
@@ -180,61 +180,36 @@ async def plan(_: CurrentUser) -> None:
 
 @router.get("/weeks_plan", response_model=None)
 @htmy_renderer.page(planned_week_div)
-async def weeks_plan(repo: PlanRepo, user: CurrentUser) -> PlannedDays:
+async def weeks_plan(service: PlanServiceDep, user: CurrentUser) -> PlannedDays:
     """Gets the plan for the week."""
-    today = date.today()
-
-    next_week = today + timedelta(days=7)
-
-    raw_plan = await repo.get_range(today, next_week, user.pk)
-
-    days_to_plan = []
-    for i in range(7):
-        day = today + timedelta(days=i)
-        planned_day = DayToPlan(day=day, recipe=None)
-        for raw_day in raw_plan:
-            if day != raw_day.day:
-                continue
-            planned_day.recipe = PlannedRecipe(pk=raw_day.recipe_pk, name=raw_day.recipe.name)
-            break
-        days_to_plan.append(planned_day)
-
-    return PlannedDays(days_to_plan)
+    return await service.week(user.pk)
 
 
 @router.get("/meals", response_model=None)
 @htmy_renderer.page(meal_options)
-async def meals_like(meal: str, repo: RecipeRepo, user: CurrentUser) -> list[str]:
+async def meals_like(meal: str, service: RecipeServiceDep, user: CurrentUser) -> list[str]:
     """Return meals like the string provided."""
-    meals = await repo.is_like(meal, user.pk)
+    meals = await service.like(meal, user.pk)
 
     return [m.name for m in meals]
 
 
 @router.post("/planned_day", response_model=None)
-async def update_planned_day(  # noqa: PLR0913
+async def update_planned_day(
     response: Response,
     meal: t.Annotated[str, Form()],
     day: t.Annotated[date, Form()],
-    plan_repo: PlanRepo,
-    recipe_repo: RecipeRepo,
+    service: PlanServiceDep,
     user: CurrentUser,
 ) -> None:
     """Return meals like the string provided."""
-    recipe = await recipe_repo.get_by_name(meal, user.pk)
-    if recipe is None:
-        response.headers["HX-Trigger"] = "show-error"
-        return
+    planned_day = await service.plan_by_meal_name(meal, day, user.pk)
 
-    planned_day = PlannedDay(day=day, recipe=PlannedRecipe(pk=recipe.pk, name=recipe.name))
-    await plan_repo.update(planned_day, user.pk)
-    response.headers["HX-Trigger"] = "show-success"
+    response.headers["HX-Trigger"] = "show-success" if planned_day is not None else "show-error"
 
 
 @router.get("/summary", response_model=None)
 @htmy_renderer.page(summary_table)
-async def get_summary_table(repo: PlanRepo, user: CurrentUser) -> list[RecipeSummary]:
+async def get_summary_table(service: PlanServiceDep, user: CurrentUser) -> list[RecipeSummary]:
     """Gets the summary table of the recipes."""
-    summary = await repo.summarise(user.pk)
-
-    return [RecipeSummary(name=s[0], count=s[1], last_eaten=s[2]) for s in summary]
+    return await service.summary(user.pk)

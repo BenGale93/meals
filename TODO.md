@@ -596,7 +596,14 @@ The step-by-step procedure, the safety rules and the candidate smoke checklist a
 Structural notes that are not bugs themselves but make bugs more likely or harder to
 catch. Items here are numbered `Arch N`.
 
-### 1. Web routes reimplement API/domain logic — P1
+### 1. Web routes reimplement API/domain logic — P1 (done)
+
+**Fixed:** added `src/meals/services.py` (a `RecipeService`, `PlanService`, and `TimingsService`
+built from the repositories via FastAPI dependencies). Both `meals.api` and `meals.web` now call
+these use cases; the HTTP layers only translate requests/responses and map domain errors
+(404/409) to responses. The shared `clean_ingredients` helper in `meals/web/core.py` centralises
+the blank-ingredient rule that bug 7 was a symptom of. The import-linter layer now reads
+`["meals.api | meals.web", "meals.services", "meals.database"]`.
 
 `src/meals/web/*.py` does more than render: `new_recipe` and `update_recipe` parse forms
 and build requests, and `update_planned_day` looks a recipe up then updates the plan. The

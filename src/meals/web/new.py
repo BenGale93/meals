@@ -7,10 +7,18 @@ from htmy import Component, ComponentType, html
 from pydantic import ValidationError
 
 from meals.auth import CurrentUser  # noqa: TC001
-from meals.database.repository import RecipeRepo  # noqa: TC001
 from meals.exceptions import RecipeAlreadyExistsError
 from meals.schemas import CreateRecipeRequest, RecipeResponse
-from meals.web.core import PageRegistry, format_new_recipe_error, htmy_renderer, page, recipe_section, router
+from meals.services import RecipeServiceDep  # noqa: TC001
+from meals.web.core import (
+    PageRegistry,
+    clean_ingredients,
+    format_new_recipe_error,
+    htmy_renderer,
+    page,
+    recipe_section,
+    router,
+)
 
 
 def new_recipe_error(error: Exception) -> html.div:
@@ -153,15 +161,13 @@ async def new(_: CurrentUser) -> None:
 async def new_recipe(
     name: t.Annotated[str, Form()],
     instructions: t.Annotated[str, Form()],
-    repo: RecipeRepo,
+    service: RecipeServiceDep,
     ingredients: t.Annotated[list[str], Form(default_factory=list)],
     user: CurrentUser,
 ) -> RecipeResponse:
     """Create a new recipe using a form."""
-    valid_ingredients = [i for i in ingredients if i]
     recipe_data = CreateRecipeRequest.model_validate(
-        {"name": name, "ingredients": valid_ingredients, "instructions": instructions}
+        {"name": name, "ingredients": clean_ingredients(ingredients), "instructions": instructions}
     )
-    recipe = await repo.create(recipe_data, user.pk)
 
-    return RecipeResponse.model_validate(recipe)
+    return await service.create(recipe_data, user.pk)

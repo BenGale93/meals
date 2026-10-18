@@ -26,6 +26,11 @@ def format_new_recipe_error(error: ErrorDetails) -> str:
             return f"Unknown error: {error}"
 
 
+def clean_ingredients(ingredients: list[str]) -> list[str]:
+    """Drop blank ingredient inputs submitted by a form."""
+    return [ingredient for ingredient in ingredients if ingredient]
+
+
 router = APIRouter()
 
 

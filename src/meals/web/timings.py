@@ -7,13 +7,13 @@ from fastapi import Form
 from htmy import Component, html
 
 from meals.auth import CurrentUser  # noqa: TC001
-from meals.database.repository import TimingRepo  # noqa: TC001
 from meals.schemas import (
     RecipeStep,
     TimingsCreate,
     TimingsResponse,
     TimingSteps,
 )
+from meals.services import TimingsServiceDep  # noqa: TC001
 from meals.web.core import PageRegistry, htmy_renderer, page, router
 
 PAGE_NAME = "Timings"
@@ -203,9 +203,9 @@ async def timings(_: CurrentUser) -> None:
 
 @router.get("/timings")
 @htmy_renderer.page(timings_div)
-async def get_timings(repo: TimingRepo, user: CurrentUser) -> TimingsResponse:
+async def get_timings(service: TimingsServiceDep, user: CurrentUser) -> TimingsResponse:
     """Get the timings as HTML."""
-    timings = await repo.get(user.pk)
+    timings = await service.get(user.pk)
 
     if timings is None:
         return TimingsResponse(
@@ -213,18 +213,20 @@ async def get_timings(repo: TimingRepo, user: CurrentUser) -> TimingsResponse:
             finish_time=time(18, 0, 0),
             steps=TimingSteps([RecipeStep(description="Finish", offset=0)]),
         )
-    steps = TimingSteps.model_validate_json(timings.steps)
 
-    return TimingsResponse(pk=timings.pk, steps=steps, finish_time=timings.finish_time)
+    return timings
 
 
 @router.patch("/timings")
 @htmy_renderer.page(update_timings_div, error_component_selector=failed_to_update_timings_div)
 async def update_timings(
-    finish_time: t.Annotated[str, Form()], steps: t.Annotated[str, Form()], repo: TimingRepo, user: CurrentUser
+    finish_time: t.Annotated[str, Form()],
+    steps: t.Annotated[str, Form()],
+    service: TimingsServiceDep,
+    user: CurrentUser,
 ) -> None:
     """Get the timings as HTML."""
     timings_data = TimingsCreate.model_validate(
         {"finish_time": finish_time, "steps": TimingSteps.model_validate_json(steps)}
     )
-    await repo.update(timings_data, user.pk)
+    await service.update(timings_data, user.pk)
