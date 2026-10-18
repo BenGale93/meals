@@ -10,10 +10,7 @@ from meals.auth import CurrentUser  # noqa: TC001
 from meals.database.repository import RecipeRepo  # noqa: TC001
 from meals.exceptions import RecipeAlreadyExistsError
 from meals.schemas import CreateRecipeRequest, RecipeResponse
-from meals.web.core import PageRegistry, htmy_renderer, page, recipe_section, router
-
-if t.TYPE_CHECKING:
-    from pydantic_core import ErrorDetails
+from meals.web.core import PageRegistry, format_new_recipe_error, htmy_renderer, page, recipe_section, router
 
 
 def new_recipe_error(error: Exception) -> html.div:
@@ -31,20 +28,6 @@ def new_recipe_error(error: Exception) -> html.div:
         *messages,
         class_="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg",
     )
-
-
-def format_new_recipe_error(error: ErrorDetails) -> str:
-    """Formats the error message to be more useful to end user."""
-    msg = error["msg"].removeprefix("Value error, ")
-
-    match error["loc"]:
-        case ("ingredients", number, *_) if isinstance(number, int):
-            number = number + 1
-            return f"Issue with ingredient {number}: {msg}"
-        case ():
-            return msg
-        case _:  # pragma: no cover # If we knew how to trigger this, we would handle it better
-            return f"Unknown error: {error}"
 
 
 PAGE_NAME = "New Recipe"

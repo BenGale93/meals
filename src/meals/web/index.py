@@ -3,12 +3,13 @@
 import typing as t
 
 from fastapi import Form, HTTPException, status
-from htmy import Component, html
+from htmy import Component, ComponentType, html
+from pydantic import ValidationError
 
 from meals.auth import CurrentUser  # noqa: TC001
 from meals.database.repository import RecipeRepo  # noqa: TC001
 from meals.schemas import IngredientResponse, RecipeResponse, Recipes, UpdateRecipeRequest
-from meals.web.core import PageRegistry, editable_recipe_section, htmy_renderer, page, router
+from meals.web.core import PageRegistry, editable_recipe_section, format_new_recipe_error, htmy_renderer, page, router
 
 
 def recipes_div(recipes: Recipes) -> html.main:
@@ -38,9 +39,16 @@ def recipe_names(recipes: Recipes) -> html.section:
 
 def update_recipe_error(error: Exception) -> html.div:
     """Component returned when an error occurs updating a recipe."""
-    return html.div(
-        f"Error updating recipe: {error}", class_="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg mb-4"
-    )
+    messages: list[ComponentType]
+    if isinstance(error, ValidationError):
+        messages = [
+            "❌ Error(s) updating recipe",
+            html.br(),
+            *[html.p(format_new_recipe_error(e)) for e in error.errors()],
+        ]
+    else:
+        messages = [f"Error updating recipe: {error}"]
+    return html.div(*messages, class_="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg mb-4")
 
 
 def edit_recipe_name(current_name: str) -> html.div:
@@ -193,8 +201,9 @@ async def update_recipe(  # noqa: PLR0913
     user: CurrentUser,
 ) -> RecipeResponse:
     """Create a new recipe using a form."""
+    valid_ingredients = [i for i in ingredients if i]
     recipe_data = UpdateRecipeRequest.model_validate(
-        {"pk": pk, "name": name, "ingredients": ingredients, "instructions": instructions}
+        {"pk": pk, "name": name, "ingredients": valid_ingredients, "instructions": instructions}
     )
     recipe = await repo.update(recipe_data, user.pk)
 

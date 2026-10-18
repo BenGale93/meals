@@ -7,7 +7,24 @@ from fasthx.htmy import HTMY
 from htmy import Component, ComponentType, SafeStr, Tag, html
 
 if t.TYPE_CHECKING:
+    from pydantic_core import ErrorDetails
+
     from meals.schemas import IngredientResponse, RecipeResponse
+
+
+def format_new_recipe_error(error: ErrorDetails) -> str:
+    """Formats the error message to be more useful to end user."""
+    msg = error["msg"].removeprefix("Value error, ")
+
+    match error["loc"]:
+        case ("ingredients", number, *_) if isinstance(number, int):
+            number = number + 1
+            return f"Issue with ingredient {number}: {msg}"
+        case ():
+            return msg
+        case _:  # pragma: no cover # If we knew how to trigger this, we would handle it better
+            return f"Unknown error: {error}"
+
 
 router = APIRouter()
 

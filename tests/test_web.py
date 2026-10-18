@@ -76,6 +76,48 @@ class TestRecipesAPI:
 
         assert response.text == external("uuid:5082a7a0-a5fb-4135-a0ea-2923a83f682b.txt")
 
+    async def test_update_recipe_clears_last_ingredient(self, client: AsyncClient, carrots_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        json_result = response.json()
+        pk = json_result["pk"]
+
+        # The edit form submits an empty string for a cleared ingredient.
+        json_result["ingredients"] = [""]
+
+        response = await client.post(f"/update_recipe/{pk}", data=json_result)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "validation error" not in response.text.lower()
+
+        check = await client.get(f"/api/v1/recipes/{pk}")
+        assert check.json()["ingredients"] == []
+
+    async def test_update_recipe_ignores_blank_ingredient(self, client: AsyncClient):
+        new_recipe = {"name": "Test", "ingredients": ["Flour 2 cups", "Sugar 1 cups"], "instructions": "Test steps"}
+        response = await client.post("/api/v1/recipes", json=new_recipe)
+        pk = response.json()["pk"]
+
+        # Blank entries are ignored, so only the sugar is removed.
+        response = await client.post(
+            f"/update_recipe/{pk}",
+            data={"name": "Test", "ingredients": ["Flour 2 cups", ""], "instructions": "Test steps"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "validation error" not in response.text.lower()
+
+        check = await client.get(f"/api/v1/recipes/{pk}")
+        assert [i["name"] for i in check.json()["ingredients"]] == ["Flour"]
+
+    async def test_update_recipe_missing_recipe(self, client: AsyncClient):
+        response = await client.post(
+            "/update_recipe/9999",
+            data={"name": "Test", "ingredients": ["Flour 2 cups"], "instructions": "Test steps"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "Recipe does not exist" in response.text
+
     async def test_edit_recipe(self, client: AsyncClient, carrots_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
         json_result = response.json()
