@@ -20,3 +20,8 @@ alias l := lint
 
 @start:
     uv run fastapi dev src/main.py
+
+alias b := backup
+
+@backup *args:
+    if [ -f .env ]; then uv run --env-file .env python scripts/backup_db.py {{args}}; else uv run python scripts/backup_db.py {{args}}; fi

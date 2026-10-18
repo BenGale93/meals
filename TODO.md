@@ -41,12 +41,10 @@ later edits to the app's data, so **refresh it (step 1) before every migration o
 do not treat it as permanently done.
 
 - [x] **1. Back up using SQLite's backup API — not `cp`.** A backup has been taken and copies
-  are held on the Pi and locally. For future refreshes, copying a live database with `cp` can
-  capture a torn file and misses the `-wal`/`-shm` sidecars, so use
-  `sqlite3 /home/galeb/meals/meals.db ".backup '/home/galeb/meals-backups/meals-$(date +%F-%H%M).db'"`
-  (or, if the `sqlite3` CLI isn't installed on the Pi, Python's `sqlite3.Connection.backup`).
-  Verify a copy by opening it read-only and counting rows (`users`, `recipes`,
-  `recipe_ingredients`, …), and keep at least one copy off the Pi.
+  are held on the Pi and locally. For future refreshes, use `just backup` (see Admin item 4):
+  it wraps `sqlite3 ... ".backup ..."`, so it never `cp`s a live file (which can capture a
+  torn database and misses the `-wal`/`-shm` sidecars), and it reopens the copy and prints
+  per-table row counts so you can confirm it is complete. Keep at least one copy off the Pi.
 - [ ] **2. Move the database out of the checkout** to a stable absolute path (e.g.
   `/home/galeb/meals-data/meals.db`, or `~/.local/share/meals/`). The file is
   `*.db`-gitignored, so a `git clean -fdx`, a fresh clone, or a deploy script that rsyncs
@@ -364,13 +362,17 @@ create the real `.env` on the Pi pointing at the absolute
 part of migrate_plan.md section 4 — creating `.env` before the file is moved makes the app
 start against an empty database.
 
-### 4. Backups / export of `meals.db` — P1
+### 4. Backups / export of `meals.db` — P1 (done)
 
-The only copy of your data is a single SQLite file on the Pi. Add a simple, documented
-backup path (e.g. a `just backup` target using `sqlite3 .backup`, plus a note about
-restoring) and/or the export capability in Features item 6. This is cheap insurance for a
-device that is awkward to rebuild. Consider a scheduled copy to another machine on the
-tailnet.
+The only copy of your data is a single SQLite file on the Pi, so a simple, documented backup
+path now exists: `just backup` runs `scripts/backup_db.py`, which uses SQLite's online backup
+API (safe while the app runs), honours `DATABASE_URL`/`.env` and `BACKUP_DIR`, and prints the
+row count of every table so the copy is verified rather than assumed. Restore is documented
+in `deploy/README.md` (stop the service, copy the file, remove `-wal`/`-shm`, start).
+
+Still worth considering: a scheduled off-Pi copy (a `meals-backup.timer` systemd unit, or a
+`scp`/`rsync` to another machine on the tailnet), and the JSON/YAML export in Features
+item 6.
 
 ### 5. Add logging and a global exception handler — P2
 

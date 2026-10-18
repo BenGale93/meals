@@ -46,7 +46,7 @@ matters — each depends on the one above it.
 | 1 | **Admin 3** — env-driven config (`DATABASE_URL`) | An absolute path from the environment is what lets the candidate and the live app use different DB files and lets the service be started from anywhere. | Yes |
 | 2 | **Data safety 3** — tests must not touch production | `tests/test_app.py::test_lifespan_init_models` runs `create_all` against the relative `meals.db`; until fixed, running `just` in the Pi checkout opens the live DB. Also guard/remove the commented `drop_all` in `src/meals/database/session.py`. | Yes |
 | 3 | **Admin 2 + Data safety 4** — Alembic, baseline + `alembic stamp head` | Turns "delete the DB to change schema" into forward migrations. Baseline marks the existing tables as applied so the first migration never tries to recreate them. | Yes (for any schema change; recommended before all cutovers) |
-| 4 | **Admin 4 + Data safety 1** — `just backup` / documented restore | The cutover is only reversible if backup+restore is a one-liner you have actually run. | Yes |
+| 4 | **Admin 4 + Data safety 1** — `just backup` / documented restore (done) | The cutover is only reversible if backup+restore is a one-liner you have actually run. | Yes |
 | 5 | **Data safety 2** — move the DB out of the checkout | Stops `git clean`, re-clone, or `rsync --delete` from deleting the data. Folded into the first cutover (section 4). | Yes |
 | 6 | **Admin 12** — this side-by-side process | The procedure itself. | Yes |
 | 7 | **Admin 1** — systemd unit + `just deploy` | Reduces the manual cutover to `just deploy` and makes stop/start deterministic. Not needed for the very first manual cutover. | Recommended |
@@ -54,11 +54,12 @@ matters — each depends on the one above it.
 | 9 | **Admin 5** — logging + global exception handler | Makes candidate validation and rollback diagnosis much easier (journald logs rather than bare 500s). | Optional |
 | 10 | **Admin 10 / Admin 11** — dependency refresh / mypy→pyrefly | These are *payloads* for a later candidate, not prerequisites. Do them on the candidate, never directly on live. | Optional |
 
-**Progress (2026-10-18):** items 1 and 2 are **done** — `DATABASE_URL` is read from the
+**Progress (2026-10-18):** items 1, 2 and 4 are **done** — `DATABASE_URL` is read from the
 environment via `meals/settings.py` (with `.env.example`), the test suite is forced onto an
-in-memory database by the root `conftest.py`, and the `drop_all` line is gone. The systemd
-unit is committed and installed (the unit half of item 7). Items 3–5 and the DB relocation in
-section 4 are outstanding.
+in-memory database by the root `conftest.py`, the `drop_all` line is gone, and `just backup`
+provides a verified, documented backup (restore steps in `deploy/README.md`). The systemd unit
+is committed and installed (the unit half of item 7). Items 3 and 5, and the DB relocation in
+section 4, are outstanding.
 
 ### 2.1 Admin 3 — make the DB path explicit (done)
 
@@ -143,10 +144,12 @@ systemctl show meals -p WorkingDirectory -p EnvironmentFiles -p User
 ### Step 1 — back up the live DB
 
 ```bash
-sqlite3 /home/galeb/meals-data/meals.db ".backup '<BACKUP>'"
-# verify it opens and has data
-sqlite3 "file:<BACKUP>?mode=ro" "select count(*) from recipes;"
+just backup            # verified copy, honours .env; prints per-table row counts
 ```
+
+Under the hood that is SQLite's online backup API writing
+`sqlite3 <source> ".backup '<BACKUP>'"`; the difference is that `just backup` also reopens and
+counts the copy so you know it is complete before you rely on it.
 
 ### Step 2 — build the candidate
 

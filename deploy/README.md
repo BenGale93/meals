@@ -36,6 +36,31 @@ journalctl -u meals -f          # logs
 systemctl restart meals
 ```
 
+## Backups and restore
+
+Take a verified snapshot at any time — SQLite's online backup API is safe while the app is
+running:
+
+```bash
+just backup                 # writes to <database dir>/backups
+just backup /some/dir       # explicit destination
+BACKUP_DIR=/some/dir just backup
+```
+
+`just backup` loads `.env` when present (so it targets the same database as the service) and
+prints the row count of every table, which is how you confirm the copy is complete. Keep at
+least one copy off the Pi.
+
+Restore (SQLite allows one writer, so the service must be stopped):
+
+```bash
+sudo systemctl stop meals
+cp <backup> <database path>
+rm -f <database path>-wal <database path>-shm
+sudo systemctl start meals
+systemctl status meals --no-pager
+```
+
 ## Upgrades and rollback
 
 Use the side-by-side (blue/green) process in [`../migrate_plan.md`](../migrate_plan.md):
