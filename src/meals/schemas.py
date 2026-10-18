@@ -63,10 +63,25 @@ class IngredientResponse(BaseModel):
         return f"{self.name} {self.quantity} {self.unit}"
 
 
+def check_unique_ingredient_names(ingredients: list[CreateIngredientRequest]) -> None:
+    """Raise if the same ingredient name is listed more than once."""
+    names = [ingredient.name for ingredient in ingredients]
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    if duplicates:
+        msg = f"Duplicate ingredients are not allowed: {', '.join(duplicates)}."
+        raise ValueError(msg)
+
+
 class CreateRecipeRequest(BaseModel):
     name: str
     ingredients: list[CreateIngredientRequest]
     instructions: str
+
+    @model_validator(mode="after")
+    def ingredients_are_unique(self) -> CreateRecipeRequest:
+        """Ensure each ingredient is listed at most once."""
+        check_unique_ingredient_names(self.ingredients)
+        return self
 
     @model_validator(mode="after")
     def both_or_neither_ingredients_and_instructions(self) -> CreateRecipeRequest:
@@ -96,6 +111,12 @@ class UpdateRecipeRequest(BaseModel):
     name: str
     ingredients: list[CreateIngredientRequest]
     instructions: str
+
+    @model_validator(mode="after")
+    def ingredients_are_unique(self) -> UpdateRecipeRequest:
+        """Ensure each ingredient is listed at most once."""
+        check_unique_ingredient_names(self.ingredients)
+        return self
 
     def get_ingredient(self, name: str) -> CreateIngredientRequest | None:
         """Get the ingredient by name."""

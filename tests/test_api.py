@@ -276,6 +276,27 @@ class TestRecipesAPI:
 
         assert response.status_code == status.HTTP_409_CONFLICT
 
+    async def test_create_duplicate_ingredient(self, client: AsyncClient):
+        recipe = {
+            "name": "Carrot Surprise",
+            "ingredients": ["Carrot 1 unit", "Carrot 2 units"],
+            "instructions": "Test instructions",
+        }
+
+        response = await client.post("/api/v1/recipes", json=recipe)
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    async def test_update_duplicate_ingredient(self, client: AsyncClient, carrots_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        response.raise_for_status()
+
+        recipe = response.json() | {"ingredients": ["Carrot 1 unit", "Carrot 2 units"]}
+
+        response = await client.put("/api/v1/recipes", json=recipe)
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     async def test_create_and_update_delete_ingredient(self, client: AsyncClient, carrots_recipe):
         carrots_recipe.ingredients.append(CreateIngredientRequest(name="delete", quantity=1.0, unit="stuff"))
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
