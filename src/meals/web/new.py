@@ -144,7 +144,7 @@ def new_recipe_page(_: t.Any) -> Component:
 
 @router.get(PageRegistry.route(PAGE_NAME))
 @htmy_renderer.page(new_recipe_page)
-async def new() -> None:
+async def new(_: CurrentUser) -> None:
     """The new page of the application."""
 
 

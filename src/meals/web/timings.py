@@ -197,7 +197,7 @@ def timings_page(_: t.Any) -> Component:
 
 @router.get(PageRegistry.route(PAGE_NAME))
 @htmy_renderer.page(timings_page)
-async def timings() -> None:
+async def timings(_: CurrentUser) -> None:
     """The timings pag of the application."""
 
 

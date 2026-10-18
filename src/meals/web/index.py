@@ -168,7 +168,7 @@ def index_page(_: t.Any) -> Component:
 
 @router.get(PageRegistry.route(PAGE_NAME))
 @htmy_renderer.page(index_page)
-async def index() -> None:
+async def index(_: CurrentUser) -> None:
     """The index page of the application."""
 
 

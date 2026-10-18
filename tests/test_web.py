@@ -20,6 +20,12 @@ class TestViewAPI:
 
         assert response.text == external("uuid:efb61175-7f7a-4a21-be06-fada95992420.txt")
 
+    async def test_page_shells_require_auth(self, bad_client: AsyncClient):
+        for path in ["/", "/new.html", "/plan.html", "/timings.html"]:
+            response = await bad_client.get(path)
+
+            assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
 
 class TestRecipesAPI:
     async def test_get_recipe(self, client: AsyncClient, carrots_recipe):

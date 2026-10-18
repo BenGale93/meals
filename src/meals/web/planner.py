@@ -174,7 +174,7 @@ def plan_page(_: t.Any) -> Component:
 
 @router.get(PageRegistry.route(PAGE_NAME))
 @htmy_renderer.page(plan_page)
-async def plan() -> None:
+async def plan(_: CurrentUser) -> None:
     """The index page of the application."""
 
 
