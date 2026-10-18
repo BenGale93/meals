@@ -33,7 +33,7 @@ test = [
   "inline-snapshot>=0.31.0",
   "time-machine>=3.1.0",
 ]
-typing = ["mypy>=1.18.2"]
+typing = ["pyrefly>=1.4.0"]
 typing-test = [{ include-group = "test" }, { include-group = "typing" }]
 
 [project.scripts]
@@ -62,23 +62,6 @@ ignore = ["COM812", "ISC001", "ANN401", "D101", "FIX002", "TD", "DTZ"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
-
-[tool.mypy]
-exclude = "build"
-plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "meals.*"
-strict = true
-
-[[tool.mypy.overrides]]
-module = "tests.*"
-strict = true
-disallow_untyped_calls = false
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-disallow_subclassing_any = false
 
 [tool.coverage.report]
 exclude_also = [
@@ -115,4 +98,22 @@ layers = ["meals.api | meals.web", "meals.services", "meals.database"]
 format-command = "uv run ruff format --stdin-filename {filename}"
 
 [tool.pyrefly]
+preset = "strict"
+project-includes = ["src", "tests"]
 project-excludes = ["**/build*"]
+check-unannotated-defs = true
+
+# Mypy's `strict` bundle enables these; Pyrefly's `strict` preset does not.
+[tool.pyrefly.errors]
+no-any-return = "error"
+incompatible-comparison = "error"
+untyped-function-decorator = "error"
+untyped-class-decorator = "error"
+implicit-reexport = "error"
+
+# Mirrors the old `[[tool.mypy.overrides]]` for `tests.*`: bodies are still checked,
+# but tests need not annotate every fixture or parameter.
+[[tool.pyrefly.sub-config]]
+matches = "tests/**"
+[tool.pyrefly.sub-config.errors]
+implicit-any = "ignore"

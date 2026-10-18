@@ -116,7 +116,7 @@ class PlanService:
         today = date.today()
         raw_plan = await self._plan_repo.get_range(today, today + timedelta(days=7), user_pk)
 
-        days_to_plan = []
+        days_to_plan: list[DayToPlan] = []
         for i in range(7):
             day = today + timedelta(days=i)
             planned_day = DayToPlan(day=day, recipe=None)

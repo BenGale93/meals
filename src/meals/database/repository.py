@@ -329,7 +329,7 @@ class PlanRepository:
 
         result = await self.session.execute(stmt)
 
-        return list(result.fetchall())  # type: ignore [arg-type]
+        return [(row[0], row[1], row[2]) for row in result.fetchall()]
 
 
 def get_plan_repo(session: AsyncSession = Depends(get_db)) -> PlanRepository:  # noqa: B008

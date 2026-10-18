@@ -168,12 +168,12 @@ def ingredient_div(ingredient: IngredientResponse) -> html.div:
 
 
 def _common_recipe(recipe: RecipeResponse) -> tuple[list[Tag], dict[str, t.Any]]:
-    core_components = [
+    core_components: list[Tag] = [
         html.h2(recipe.name, class_="text-2xl font-bold text-green-700 mb-3"),
         html.ul(*[html.li(ingredient_div(i)) for i in recipe.ingredients], class_="list-disc ml-5 mb-4"),
         html.p(recipe.instructions, style="white-space:pre-line;", class_="pb-3"),
     ]
-    properties = {
+    properties: dict[str, t.Any] = {
         "class_": "bg-white rounded-2xl shadow-md p-6",
         "id": recipe.anchor,
     }

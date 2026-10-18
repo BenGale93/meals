@@ -467,8 +467,6 @@ not a valid stand-in for the production schema.
 
 ### 9. Tidy tooling and documentation — P3
 
-- `[tool.pyrefly]` in `pyproject.toml` is currently inert; it is superseded by the
-  migration in Admin item 11.
 - The `filterwarnings` comment in `pyproject.toml` says "except from mymodule" but the
   pattern is `meals.*` — stale copy-paste.
 - `README.md` is a feature blurb only; add prerequisites/setup, how to run the dev server
@@ -520,7 +518,16 @@ Python 3.14 or greater` on every start. Pydantic 2.14.1 no longer emits it (veri
 isolated environment with FastAPI 0.119.0); the app uses v2 models only, so the warning is
 cosmetic until then.
 
-### 11. Migrate from mypy to pyrefly — P1
+### 11. Migrate from mypy to pyrefly — P1 (done)
+
+**Migrated:** `uv run pyrefly check` (strict) is now the `just type_check` target and the only
+type checker in the `typing` group; `mypy` and `[tool.mypy]` are gone. Config lives in
+`[tool.pyrefly]` — `preset = "strict"`, `check-unannotated-defs = true`, a `tests/**`
+sub-config relaxing `implicit-any`, and the mypy-strict extras (`no-any-return`,
+`incompatible-comparison`, `untyped-function-decorator`, `untyped-class-decorator`,
+`implicit-reexport`) under `[tool.pyrefly.errors]`. The three mypy `# type: ignore` comments
+were replaced by `@override` plus two `# pyrefly: ignore[bad-override]`s, or a real fix
+(a plain tuple in `PlanRepository.summarise`).
 
 The type checker of choice is now Pyrefly (v1.x; 1.4.0 at time of writing), and the
 repository is already half-prepared: `pyproject.toml` has a `[tool.pyrefly]` section

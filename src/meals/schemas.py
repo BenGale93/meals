@@ -59,7 +59,8 @@ class IngredientResponse(BaseModel):
     quantity: float
     unit: str
 
-    def __str__(self) -> str:  # noqa: D105
+    @t.override
+    def __str__(self) -> str:
         return f"{self.name} {self.quantity} {self.unit}"
 
 
@@ -129,8 +130,9 @@ class UpdateRecipeRequest(BaseModel):
 class CreateRecipes(RootModel[list[CreateRecipeRequest]]):
     """A list of recipes to create."""
 
-    def __iter__(self) -> t.Iterator[CreateRecipeRequest]:  # type: ignore [override]  # noqa: D105 # pragma: no cover
-        return iter(self.root)
+    @t.override
+    def __iter__(self) -> t.Iterator[CreateRecipeRequest]:  # pyrefly: ignore[bad-override]
+        return iter(self.root)  # pragma: no cover
 
 
 class Recipes(RootModel[list[RecipeResponse]]):
@@ -138,7 +140,8 @@ class Recipes(RootModel[list[RecipeResponse]]):
 
     model_config = ConfigDict(from_attributes=True)
 
-    def __iter__(self) -> t.Iterator[RecipeResponse]:  # type: ignore [override]  # noqa: D105
+    @t.override
+    def __iter__(self) -> t.Iterator[RecipeResponse]:  # pyrefly: ignore[bad-override]
         return iter(self.root)
 
 
