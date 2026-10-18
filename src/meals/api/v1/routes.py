@@ -85,6 +85,8 @@ async def update_recipe(
         recipe = await repo.update(data, user_pk=user.pk)
     except RecipeDoesNotExistError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message) from None
+    except RecipeAlreadyExistsError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=e.message) from None
 
     return schemas.RecipeResponse.model_validate(recipe)
 

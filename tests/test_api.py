@@ -264,6 +264,18 @@ class TestRecipesAPI:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    async def test_update_renamed_to_existing_name(self, client: AsyncClient, carrots_recipe, sweets_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        response.raise_for_status()
+        response = await client.post("/api/v1/recipes", json=sweets_recipe.model_dump())
+        response.raise_for_status()
+
+        recipe = UpdateRecipeRequest.model_validate(response.json() | {"name": carrots_recipe.name})
+
+        response = await client.put("/api/v1/recipes", json=recipe.model_dump())
+
+        assert response.status_code == status.HTTP_409_CONFLICT
+
     async def test_create_and_update_delete_ingredient(self, client: AsyncClient, carrots_recipe):
         carrots_recipe.ingredients.append(CreateIngredientRequest(name="delete", quantity=1.0, unit="stuff"))
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())

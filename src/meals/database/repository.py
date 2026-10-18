@@ -150,6 +150,13 @@ class RecipeRepository:
         if existing_recipe is None:
             raise RecipeDoesNotExistError
 
+        name_stmt = select(StoredRecipe).filter_by(name=recipe_data.name, user_pk=user_pk)
+        stmt_result = await self.session.scalars(name_stmt)
+        conflicting_recipe = stmt_result.first()
+
+        if conflicting_recipe is not None and conflicting_recipe.pk != existing_recipe.pk:
+            raise RecipeAlreadyExistsError
+
         existing_recipe.name = recipe_data.name
         existing_recipe.instructions = recipe_data.instructions
 
