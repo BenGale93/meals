@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = "sqlite+aiosqlite:///meals.db"
+from meals.settings import database_url
+
+DATABASE_URL = database_url()
 
 
 class Base(DeclarativeBase):
@@ -39,5 +41,4 @@ async def init_models() -> None:
     In a real-life example we would use Alembic to manage migrations.
     """
     async with async_engine.begin() as conn:
-        # await conn.run_sync(Base.metadata.drop_all)  # noqa: ERA001
         await conn.run_sync(Base.metadata.create_all)

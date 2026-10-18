@@ -35,7 +35,7 @@ Pi — `galeb@192.168.1.135:/home/galeb/meals/meals.db` — and it holds real da
 following as prerequisites for Admin items 1–4: no migration, dependency upgrade, or deploy
 change should be attempted until they are done.
 
-**Status:** step 1 (backup) is done — copies exist on the Pi and locally. Steps 2–5 are
+**Status:** steps 1 (backup) and 3 (tests off production) are done. Steps 2, 4 and 5 are
 outstanding. Note that the existing backup is a point-in-time snapshot and will not include
 later edits to the app's data, so **refresh it (step 1) before every migration or deploy**;
 do not treat it as permanently done.
@@ -52,13 +52,11 @@ do not treat it as permanently done.
   `*.db`-gitignored, so a `git clean -fdx`, a fresh clone, or a deploy script that rsyncs
   with `--delete` will silently destroy it. This depends on Admin item 3 (env-driven
   `DATABASE_URL`); point the app **and** Alembic at the same absolute path.
-- [ ] **3. Never let the test suite or dev tooling point at production.** Right now
-  `tests/test_app.py::test_lifespan_init_models` runs `init_models()` (i.e. `create_all`)
-  against the *relative* `meals.db` in the current directory, so running `just test` from
-  `/home/galeb/meals` touches the live file. Make the path an env var that tests override
-  to `tmp_path`, or set `DATABASE_URL` before importing the app. Also delete or guard the
-  commented-out `Base.metadata.drop_all` line in `src/meals/database/session.py` — a stray
-  uncomment would wipe the database.
+- [x] **3. Never let the test suite or dev tooling point at production.** Done:
+  `DATABASE_URL` is now read from the environment via `meals.settings.database_url()` (root
+  `conftest.py` forces `sqlite+aiosqlite:///:memory:` before any `meals` import, so the suite
+  can no longer open a real `meals.db`), and the commented-out `Base.metadata.drop_all` line
+  in `src/meals/database/session.py` has been deleted.
 - [ ] **4. Adopt Alembic against the real schema, don't recreate it.** Generate the initial
   migration from the current models, then run `alembic stamp head` on the existing
   database (marking it as already migrated) instead of `upgrade`, so Alembic never tries to
@@ -288,17 +286,16 @@ rejected cases.
 
 ### 1. A better way to deploy to the Pi — P1
 
-Deployment already runs under systemd, but the unit is **not in the repository**. A
-`meals.service` unit exists at `/etc/systemd/system/meals.service` (enabled, started
-2026-10-01) whose `ExecStart` is already the production command
-`uv run fastapi run src/main.py`, `WorkingDirectory` is the checkout `/home/galeb/meals`, and
-it listens on `0.0.0.0:8000` (LAN clients at `192.168.1.x` reach it in the logs). So the
-server command itself is fine; the problem is that the unit lives outside the checkout and is
-therefore unversioned, undocumented, and easy to lose or drift — `/home/galeb/meals` is not a
-pristine clone because of it, and there is no `just deploy`. (`just start` still runs
-`fastapi dev`, the auto-reload development server, which is for local work only.) The goal is
-to bring the existing unit under version control, harden it, and make the release one command
-that survives reboots and upgrades without data loss.
+Deployment already runs under systemd, and the unit is now **in the repository**. A hardened
+copy of `/etc/systemd/system/meals.service` is committed at `deploy/meals.service` (installed
+and verified on the Pi 2026-10-18): `ExecStart` is the production command
+`uv run --frozen fastapi run src/main.py`, `WorkingDirectory` is the checkout
+`/home/galeb/meals`, and it listens on `0.0.0.0:8000` (LAN clients at `192.168.1.x` reach it
+in the logs). What remains is not the unit but the *release process*: there is still no
+`just deploy`, migrations are not wired into start-up, and the deployment notes are not in
+`README.md`. (`just start` still runs `fastapi dev`, the auto-reload development server,
+which is for local work only.) The goal is to make the release one command that survives
+reboots and upgrades without data loss.
 
 For a single self-hosted service on one Pi, **systemd remains the least machinery and the
 recommended path** — it is already the chosen path, so this is consolidation rather than a
@@ -307,14 +304,14 @@ rewrite:
 - Keep the production command (`fastapi run src/main.py`) with no `--reload`. It currently
   binds `0.0.0.0` and LAN clients use it, so only narrow that to the Tailscale address if you
   actually want LAN access gone; TLS is unnecessary inside Tailscale.
-- **Version-control the unit.** A hardened copy is now committed at
-  `deploy/meals.service` (with install notes in `deploy/README.md`): explicit `User=`/`Group=`,
+- **The unit is version-controlled** (done). `deploy/meals.service` (with install notes in
+  `deploy/README.md`) has explicit `User=`/`Group=`,
   `EnvironmentFile=-/home/galeb/meals/.env`, `Environment=PYTHONUNBUFFERED=1`,
   `ExecStart=.../uv run --frozen fastapi run src/main.py`, `Restart=on-failure`,
   `RestartSec=5`, `SyslogIdentifier=meals`, `NoNewPrivileges=true`, `PrivateTmp=true`.
-  Remaining work here is to actually install it on the Pi (`sudo cp deploy/meals.service
-  /etc/systemd/system/` then `daemon-reload` + `restart`) and confirm the running service
-  matches. Do **not** rely on the working directory for the database path (see Admin item 3).
+  Re-install after any change with `sudo cp deploy/meals.service /etc/systemd/system/` then
+  `daemon-reload` + `restart`. Do **not** rely on the working directory for the database path
+  (see Admin item 3).
 - Run a verified database backup, then migrations, as `ExecStartPre=` steps (Admin item 2
   and **Protect the live data**), so a restart upgrades the schema safely and a failed
   upgrade can be rolled back by restoring the file.
@@ -351,15 +348,21 @@ already-present tables as applied instead of trying to recreate them. This is th
 work (Features item 1), which adds several tables, and it is the single most valuable item
 for data durability.
 
-### 3. Make configuration env-driven — P1
+### 3. Make configuration env-driven — P1 (done)
 
-`DATABASE_URL` is hardcoded to the relative path `sqlite+aiosqlite:///meals.db`. Under a
-systemd unit or container the working directory is not guaranteed, so this can create or
-open the wrong file — silently starting with an empty database. Read `DATABASE_URL` (and
-the session/secret key from bug 5, if added) from the environment with a sensible default,
-ideally via a small settings object, and add a `.env.example`. Prefer an absolute default
-path under a data directory rather than one relative to the repo root, and point the
-production service at it from its `EnvironmentFile`.
+`DATABASE_URL` was hardcoded to the relative path `sqlite+aiosqlite:///meals.db`, so under a
+systemd unit the working directory silently decided which file was opened. Now done: a small
+`meals/settings.py` exposes `database_url()`, which reads `DATABASE_URL` from the environment
+and defaults to the relative `sqlite+aiosqlite:///meals.db` (so local development is
+unchanged). `meals.database.session` builds its engine from it, `.env.example` documents the
+setting, and `deploy/meals.service` loads it via `EnvironmentFile=`. Tests are insulated (see
+**Protect the live data** step 3).
+
+What remains is purely operational, and belongs to the first cutover rather than this item:
+create the real `.env` on the Pi pointing at the absolute
+`/home/galeb/meals-data/meals.db`, move the database there, and restart. Do this **only** as
+part of migrate_plan.md section 4 — creating `.env` before the file is moved makes the app
+start against an empty database.
 
 ### 4. Backups / export of `meals.db` — P1
 

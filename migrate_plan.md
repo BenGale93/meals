@@ -54,28 +54,34 @@ matters — each depends on the one above it.
 | 9 | **Admin 5** — logging + global exception handler | Makes candidate validation and rollback diagnosis much easier (journald logs rather than bare 500s). | Optional |
 | 10 | **Admin 10 / Admin 11** — dependency refresh / mypy→pyrefly | These are *payloads* for a later candidate, not prerequisites. Do them on the candidate, never directly on live. | Optional |
 
-### 2.1 Admin 3 — make the DB path explicit
+**Progress (2026-10-18):** items 1 and 2 are **done** — `DATABASE_URL` is read from the
+environment via `meals/settings.py` (with `.env.example`), the test suite is forced onto an
+in-memory database by the root `conftest.py`, and the `drop_all` line is gone. The systemd
+unit is committed and installed (the unit half of item 7). Items 3–5 and the DB relocation in
+section 4 are outstanding.
 
-Read `DATABASE_URL` from the environment with an absolute default, e.g. via a small settings
-object, and commit a `.env.example`. On the Pi the service environment becomes:
+### 2.1 Admin 3 — make the DB path explicit (done)
+
+`DATABASE_URL` is read from the environment by `meals.settings.database_url()`, defaulting to
+the relative `sqlite+aiosqlite:///meals.db` so local development is unchanged. `.env.example`
+documents the production value, and `deploy/meals.service` loads it via `EnvironmentFile=`:
 
 ```dotenv
 # note the four slashes: scheme://<host>/<absolute-path>
 DATABASE_URL=sqlite+aiosqlite:////home/galeb/meals-data/meals.db
-TZ=Australia/Sydney
 ```
 
-Until this ships to the live app, the current hardcoded relative
-`sqlite+aiosqlite:///meals.db` means the candidate must be launched from a directory where
-its copy happens to be named `meals.db` — workable but fragile, which is exactly why this
-item comes first.
+The code half is done. The operational half (create the real `.env` on the Pi, move the
+database, restart) happens in the first cutover, section 4 — **not** before, or the app would
+start against an empty database at the new path.
 
-### 2.2 Data safety 3 — test suite must not point at production
+### 2.2 Data safety 3 — test suite must not point at production (done)
 
-Make the DB URL overridable in the test fixtures (point at `tmp_path`), or set
-`DATABASE_URL` before importing the app. Delete or hard-guard the commented
-`Base.metadata.drop_all` line so it can never be uncommented by accident. Confirm by running
-`just` and checking the live `meals.db` mtime is unchanged.
+Done, and insulated structurally rather than by convention: the root `conftest.py` sets
+`DATABASE_URL=sqlite+aiosqlite:///:memory:` before any `meals` import, so the module-level
+engine the lifespan test uses is never the real file. The commented `Base.metadata.drop_all`
+line has been deleted. Verified by asserting the engine URL under pytest and confirming
+`meals.db` is never opened.
 
 ### 2.3 Admin 2 + Data safety 4 — Alembic baseline
 
@@ -117,24 +123,22 @@ Verify every backup by opening it read-only and counting rows (`users`, `recipes
 Run this for every future release. `<BACKUP>` is a fresh timestamped backup path; `<COPY>` is
 the candidate's own database file.
 
-### Step 0 — the launch mechanism (already known)
+### Step 0 — confirm the launch mechanism
 
-The live app is a systemd service: `meals.service` (`/etc/systemd/system/meals.service`,
-enabled, running since 2026-10-01), `ExecStart=uv run fastapi run src/main.py`, listening on
-`0.0.0.0:8000`, working directory `/home/galeb/meals`. Stop/start is therefore
-`systemctl stop meals` / `systemctl start meals` (or `restart`), and logs are
-`journalctl -u meals -f`.
+The live app is a systemd service: `meals.service` (enabled, running since 2026-10-01),
+`ExecStart=uv run --frozen fastapi run src/main.py`, listening on `0.0.0.0:8000`, working
+directory `/home/galeb/meals`. Stop/start is therefore `systemctl stop meals` /
+`systemctl start meals` (or `restart`), and logs are `journalctl -u meals -f`.
 
-Capture the unit now so it can be committed and reviewed (Admin item 1), and so you know its
-exact `WorkingDirectory`/`EnvironmentFile` before the first cutover:
+The unit is now committed at `deploy/meals.service` and installed on the Pi (verified
+2026-10-18), so the deployment is reproducible from source. Confirm the running unit matches
+the repo before relying on it, and re-read its `EnvironmentFile` setting (the inert `.env`
+hook that Admin item 3 activates):
 
 ```bash
 systemctl cat meals            # show the unit and any drop-ins
 systemctl show meals -p WorkingDirectory -p EnvironmentFiles -p User
 ```
-
-Note the unit is **not** in the repo, so `/home/galeb/meals` is not a clean clone and the
-release process is not reproducible from source yet.
 
 ### Step 1 — back up the live DB
 
