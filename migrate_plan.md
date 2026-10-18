@@ -59,9 +59,9 @@ via `meals/settings.py` (with `.env.example`), the test suite is forced onto an 
 database by the root `conftest.py`, the `drop_all` line is gone, `just backup` provides a
 verified, documented backup (restore steps in `deploy/README.md`), Alembic owns the schema, and
 the live database has been stamped and moved to `/home/galeb/meals-data/meals.db` with `.env`
-pointing at it (section 4). The systemd unit is committed and installed (the unit half of item
-7). Still outstanding: `ExecStartPre=alembic upgrade head`, `just deploy` (item 7), and
-items 8–10.
+pointing at it (section 4). The systemd unit is committed, installed, and runs
+`ExecStartPre=alembic upgrade head`. Still outstanding: the verified backup step and `just
+deploy` (item 7), and items 8–10.
 
 ### 2.1 Admin 3 — make the DB path explicit (done)
 
@@ -273,8 +273,9 @@ and stamped it at the Alembic baseline. **It was completed on 2026-10-18:**
    `/home/galeb/meals/meals.db` is gone. `/home/galeb/meals` is now code-only apart from the
    gitignored `.env`.
 
-**Remaining:** enable the `ExecStartPre=` line now that the live DB is stamped, then reinstall
-the unit and restart. That belongs with the deploy tooling (Admin 1 / section 5).
+**Remaining:** the `ExecStartPre=alembic upgrade head` step is now enabled in
+`deploy/meals.service` (installed and verified 2026-10-18). What is left is the verified backup
+before a restart and `just deploy` (Admin 1 / section 5).
 
 ---
 
@@ -290,8 +291,8 @@ Once one manual cutover has worked, fold it into tooling (Admin 1 + Admin 12 ste
   (`/home/galeb/meals-current` → `/home/galeb/releases/<date>`) so a cutover is a symlink
   swap plus `systemctl restart meals`, and rollback is swapping the link back.
 - `ExecStartPre=` runs `alembic upgrade head` (and, later, a verified backup), so a restart
-  upgrades safely and a failed upgrade is restore-able. The live database is stamped, so this
-  is now safe to enable; the line is documented in the committed unit.
+  upgrades safely and a failed upgrade is restore-able. Enabled in the committed unit
+  (2026-10-18); a verified backup step still belongs in `just deploy`.
 - `just deploy` performs: fetch the release → `uv sync --frozen` → backup → migrate →
   `systemctl restart meals` → poll `/health` → fail loudly otherwise.
 - Document the rollback procedure and `journalctl -u meals -f` in `README.md`.

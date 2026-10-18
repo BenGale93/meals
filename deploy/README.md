@@ -45,8 +45,11 @@ never replayed; running it against the unstamped database fails with
 (it only adds the `alembic_version` table) and is also folded into the first cutover in
 [`../migrate_plan.md`](../migrate_plan.md) section 4.
 
-Once the live database is stamped, enable the `ExecStartPre=` line documented in
-`meals.service` so a restart applies pending migrations before the app starts.
+The live database was stamped when it was moved (2026-10-18). `meals.service` now runs
+`alembic upgrade head` as an `ExecStartPre=` step, so `systemctl restart meals` applies any
+pending migrations before the app starts; a failed migration aborts the start. The manual
+`just migrate` command above is for local development or applying a migration without a
+restart.
 
 ## Operations
 

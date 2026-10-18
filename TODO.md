@@ -343,7 +343,7 @@ Pi-specific details to get right at the same time:
 - Decide on the SQLite journal mode (WAL is kinder to an SD card and to the backup/upgrade
   flow) when foreign keys are enabled (bug 11).
 
-### 2. Data-preserving migrations (Alembic) — P1 (done; ExecStartPre wiring remains)
+### 2. Data-preserving migrations (Alembic) — P1 (done)
 
 `init_models`/`create_all` is gone; Alembic now owns the schema. `uv add alembic` plus
 `alembic init -t async migrations` set up `alembic.ini` and `migrations/`, with `env.py`
@@ -359,9 +359,10 @@ build their schema directly from the metadata, so they never touch the real file
 
 `just migrate` applies pending migrations (honouring `.env`). The live database was stamped at
 the baseline on 2026-10-18 and `.env` points at it (see **Protect the live data** steps 2 and
-4). The only remaining wiring is adding `ExecStartPre=... alembic upgrade head` to
-`deploy/meals.service`, which is now safe and belongs with the deploy tooling (Admin item 1 /
-migrate_plan.md section 5).
+4). `deploy/meals.service` now runs `alembic upgrade head` as an `ExecStartPre=` step, so a
+restart migrates before the app starts and a failed migration aborts the start. The remaining
+deploy work (a verified backup before restart, and `just deploy`) is Admin item 1 / data-safety
+step 5.
 
 This is the prerequisite for the labels work (Features item 1), which adds several tables,
 and it is the single most valuable item for data durability.
