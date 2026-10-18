@@ -108,7 +108,7 @@ label tables and is not representative — see TODO → Admin 8):
 
 Running `alembic upgrade head` against an existing, **unstamped** database fails with
 `sqlite3.OperationalError: table ingredients already exists`. That is why the live database was
-stamped when it was moved (section 4), before `ExecStartPre=alembic upgrade head` is enabled.
+stamped when it was moved (section 4), before `ExecStartPre=alembic upgrade head` was enabled.
 
 ```bash
 just migrate                       # alembic upgrade head, honouring .env

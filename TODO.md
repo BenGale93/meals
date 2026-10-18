@@ -66,9 +66,9 @@ permanently done.
   creating an empty schema). The baseline was generated from the models and validated on a
   **copy** of the live DB: `alembic stamp head` marks it applied, `upgrade head` is then a
   no-op, `alembic check` reports no drift, and row counts are unchanged. The live database
-  was stamped at `8b8ea410224a (head)` on 2026-10-18 when it was moved (step 2). Do this
-  before enabling `ExecStartPre=alembic upgrade head`, which would otherwise fail with
-  `table ingredients already exists`; that is now safe and is the only remaining wiring.
+  was stamped at `8b8ea410224a (head)` on 2026-10-18 when it was moved (step 2), and
+  `ExecStartPre=alembic upgrade head` is now enabled. The stamp had to happen first: the
+  baseline would otherwise fail with `table ingredients already exists`.
 - [ ] **5. Make the deploy flow backup-then-migrate, and rollback a file swap.** `just deploy`
   should take a verified backup before running migrations; the documented restore path is:
   stop the service, restore the `.db` file (and remove any stale `-wal`/`-shm`), start the
@@ -319,9 +319,10 @@ rewrite:
   Re-install after any change with `sudo cp deploy/meals.service /etc/systemd/system/` then
   `daemon-reload` + `restart`. Do **not** rely on the working directory for the database path
   (see Admin item 3).
-- Run a verified database backup, then migrations, as `ExecStartPre=` steps (Admin item 2
-  and **Protect the live data**), so a restart upgrades the schema safely and a failed
-  upgrade can be rolled back by restoring the file.
+- Run migrations as an `ExecStartPre=` step (done: `alembic upgrade head`), and take a verified
+  backup before a restart as part of `just deploy` (Admin item 2 and **Protect the live
+  data**), so a restart upgrades the schema safely and a failed upgrade can be rolled back by
+  restoring the file.
 - Add a `just deploy` target (or `scripts/deploy.sh`) that performs the whole release:
   fetch/rsync the new code, `uv sync --frozen`, run migrations, restart the service, then
   poll `/health` and fail loudly if it doesn't come back. Keeping the previous release on
