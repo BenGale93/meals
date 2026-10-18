@@ -1,0 +1,31 @@
+# meals-next.service — side-by-side candidate for blue/green validation.
+#
+# Driven by scripts/candidate.sh (`just candidate`); not enabled at boot, so it only runs
+# while you are validating a release. It uses its own checkout (/home/galeb/meals-next), its
+# own .env, its own database copy, and port 8001 — the live service is never involved.
+#
+# Only one process may open a given SQLite file, so the candidate must keep pointing at the
+# copy in its .env; scripts/candidate.sh is what writes that and what refuses to start the
+# candidate if its DATABASE_URL resolves to the live file.
+
+[Unit]
+Description=Meals candidate (side-by-side validation)
+After=network.target
+
+[Service]
+Type=simple
+User=galeb
+Group=galeb
+WorkingDirectory=/home/galeb/meals-next
+EnvironmentFile=-/home/galeb/meals-next/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Europe/London
+# Apply pending migrations to the candidate copy before the app starts.
+ExecStartPre=/home/galeb/.local/bin/uv run --frozen alembic upgrade head
+# --frozen: never re-resolve dependencies at start; candidate.sh syncs before starting.
+ExecStart=/home/galeb/.local/bin/uv run --frozen fastapi run src/main.py --port 8001
+Restart=on-failure
+RestartSec=5
+SyslogIdentifier=meals-next
+NoNewPrivileges=true
+PrivateTmp=true

@@ -4,8 +4,8 @@ The app runs as a systemd service on the Pi (`galeb@192.168.1.135`), inside a ch
 `/home/galeb/meals`, served by `uv run fastapi run src/main.py` on port `8000`. Releases are
 deployed with `just deploy` (see below).
 
-`meals.service` in this directory is the version-controlled copy of
-`/etc/systemd/system/meals.service`.
+`meals.service` and `meals-next.service` in this directory are the version-controlled copies
+of the live and candidate systemd units.
 
 ## Install / update the unit
 
@@ -61,6 +61,41 @@ rollback steps, then exits non-zero. It never rolls back automatically: restore 
 Run `just` (lint, type-check, tests) on the development machine before pushing; the Pi does
 not run the test suite. For a risky schema change, prefer the side-by-side process in
 [`../migrate_plan.md`](../migrate_plan.md) — `just deploy` restarts in place.
+
+## Side-by-side (blue/green) candidate
+
+For a release whose code or migrations you want to exercise against real data before touching
+the live service, run a candidate next to it (run this on the Pi, like `just deploy`). The
+candidate is a second git worktree with its own `.env`, its **own copy** of the live database
+and port `8001`; the live service keeps running on `8000` until you cut over.
+
+```bash
+just candidate                 # start/refresh the candidate at origin/master on :8001
+just candidate start <ref>     # ... at another ref
+# exercise the changed flows at http://ben-pi:8001 (over Tailscale)
+just candidate promote         # back up the live DB, fast-forward, restart, health-check
+just candidate stop            # free :8001, keep the checkout and DB copy
+just candidate clean           # stop and remove the checkout, DB copy and unit
+```
+
+`just candidate` stops any previous candidate, creates or refreshes `/home/galeb/meals-next`
+(a git worktree), copies the live database with the online backup API into
+`<data dir>/candidate/meals.db`, writes a candidate `.env` pointing at that copy, runs
+`uv sync --frozen`, applies migrations to the copy, installs `deploy/meals-next.service`
+(port `8001`, not enabled at boot) and waits for its `/health`. It refuses to start if the
+candidate `DATABASE_URL` resolves to the live file, so exactly one process writes each SQLite
+file.
+
+`just candidate promote` takes a **fresh verified backup of the live database**, fast-forwards
+the live checkout to the candidate commit, syncs, reinstalls `meals.service` if it changed,
+restarts (the unit applies migrations to the **live** database) and waits for `/health`, then
+stops the candidate. The candidate's database copy is deliberately not promoted: the live
+database may have changed since it was copied, so the cutover migrates the live file after
+backing it up. On failure the script prints the status, logs, previous commit, pre-cutover
+backup path and rollback steps, and exits non-zero; the candidate stays up for comparison.
+
+Keep the copy fresh (re-run `just candidate`) if validation takes a while, and remember the
+candidate writes to the copy, never to live data.
 
 ## Migrations
 
@@ -119,9 +154,8 @@ systemctl status meals --no-pager
 
 ## Upgrades and rollback
 
-Routine releases use `just deploy` (above). For risky schema changes, use the side-by-side
-(blue/green) process in [`../migrate_plan.md`](../migrate_plan.md):
-build and validate a candidate on port `8001` against a **copy** of the database, then cut
-over with `systemctl restart meals`. Database safety rules (backup with SQLite's `.backup`,
-never `cp` a live file, one writer per database file) are in
+Routine releases use `just deploy` (above). For risky schema changes, use `just candidate` to
+validate a copy on `:8001` and `just candidate promote` to cut over (see above, and
+[`../migrate_plan.md`](../migrate_plan.md)). Database safety rules (backup with SQLite's online
+backup API, never `cp` a live file, one writer per database file) are in
 [`../TODO.md`](../TODO.md) → "Protect the live data".

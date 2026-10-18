@@ -32,6 +32,8 @@ just deploy
 ```
 
 That takes a verified backup, fast-forwards the checkout, syncs dependencies, restarts the
-service (which applies Alembic migrations first), and waits for `/health`. See
-[`deploy/README.md`](deploy/README.md) for the unit, configuration, rollback, and restore
+service (which applies Alembic migrations first), and waits for `/health`. For a risky release
+(schema change), `just candidate` starts a side-by-side copy on `:8001` against a database
+copy, and `just candidate promote` performs the cutover. See
+[`deploy/README.md`](deploy/README.md) for the units, configuration, rollback, and restore
 steps. Logs are at `journalctl -u meals -f`.

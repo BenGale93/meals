@@ -39,16 +39,26 @@ def _row_counts(path: Path) -> dict[str, int]:
         return counts
 
 
-def main(dest: Annotated[Path | None, typer.Argument(help="Directory to write the backup into.")] = None) -> None:
-    """Write, then verify, a timestamped copy of the database."""
+def main(
+    dest: Annotated[Path | None, typer.Argument(help="Directory to write the backup into.")] = None,
+    to: Annotated[Path | None, typer.Option("--to", help="Write the backup to this exact file.")] = None,
+) -> None:
+    """Write, then verify, a copy of the database."""
     source = _database_path()
     if not source.is_file():
         msg = f"No database found at {source}"
         raise typer.BadParameter(msg)
+    if to is not None and to.resolve() == source.resolve():
+        msg = "Refusing to back up a database over itself"
+        raise typer.BadParameter(msg)
 
-    target_dir = dest or _default_backup_dir(source)
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target = target_dir / f"{source.stem}-{datetime.now():%Y%m%d-%H%M%S}.db"
+    if to is not None:
+        target = to
+        target.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        target_dir = dest or _default_backup_dir(source)
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / f"{source.stem}-{datetime.now():%Y%m%d-%H%M%S}.db"
 
     src = sqlite3.connect(f"file:{source}?mode=ro", uri=True)
     dst = sqlite3.connect(target)

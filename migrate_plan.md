@@ -133,8 +133,9 @@ Verify every backup by opening it read-only and counting rows (`users`, `recipes
 
 ## 3. The repeatable cutover procedure
 
-Run this for every future release. `<BACKUP>` is a fresh timestamped backup path; `<COPY>` is
-the candidate's own database file.
+Run this for every future release. It is captured by `just candidate` (build and validate a
+copy on `:8001`) and `just candidate promote` (cut over); the manual equivalent is noted per
+step, and `<BACKUP>` is a fresh timestamped backup path.
 
 ### Step 0 — confirm the launch mechanism
 
@@ -145,8 +146,7 @@ directory `/home/galeb/meals`. Stop/start is therefore `systemctl stop meals` /
 
 The unit is now committed at `deploy/meals.service` and installed on the Pi (verified
 2026-10-18), so the deployment is reproducible from source. Confirm the running unit matches
-the repo before relying on it, and re-read its `EnvironmentFile` setting (the inert `.env`
-hook that Admin item 3 activates):
+the repo before relying on it:
 
 ```bash
 systemctl cat meals            # show the unit and any drop-ins
@@ -162,66 +162,58 @@ just backup            # verified copy, honours .env; prints per-table row count
 Under the hood that is SQLite's online backup API writing
 `sqlite3 <source> ".backup '<BACKUP>'"`; the difference is that `just backup` also reopens and
 counts the copy so you know it is complete before you rely on it.
+`just candidate promote` takes its own fresh backup at cutover; this step is for a copy from
+before the candidate was built.
 
-### Step 2 — build the candidate
-
-Use a Git *worktree* or a plain copy — either way, never carry the live DB across:
+### Step 2 — build the candidate (tooled)
 
 ```bash
-git -C /home/galeb/meals worktree add /home/galeb/meals-next <release-ref>
-# or: rsync -a --exclude .git --exclude '*.db' /home/galeb/meals/ /home/galeb/meals-next/
-
-cd /home/galeb/meals-next
-uv sync --frozen
-cp '<BACKUP>' '<COPY>'     # candidate works on its own copy, never the live file
+just candidate            # origin/master; `just candidate start <ref>` for another ref
 ```
 
-If you prefer a fresh directory, make sure `meals-next` does **not** contain a stale
-`meals.db` other than `<COPY>`.
+That stops any previous candidate, creates (or refreshes) the `/home/galeb/meals-next` git
+worktree, copies the live DB with SQLite's online backup API into
+`<data-dir>/candidate/meals.db`, writes a candidate `.env` that points **only** at that copy,
+runs `uv sync --frozen`, applies migrations to the copy, installs
+`deploy/meals-next.service` and waits for its `/health`. It refuses to start unless the
+candidate `DATABASE_URL` resolves to the copy, so the live file still has exactly one writer.
+
+Manual equivalent: `git -C /home/galeb/meals worktree add /home/galeb/meals-next <release-ref>`,
+`cd /home/galeb/meals-next && uv sync --frozen`, copy the database, and point the candidate
+`.env` at the copy.
 
 ### Step 3 — apply migrations to the candidate copy
 
-```bash
-export DATABASE_URL=sqlite+aiosqlite:////home/galeb/meals-data-next/meals.db
-# Only if the copy predates Alembic (no alembic_version table). After the first
-# cutover the live DB is stamped, so later copies already carry the version:
-uv run alembic stamp head
-uv run alembic upgrade head   # apply anything newer than the baseline
-```
+Handled by `just candidate`: it runs `alembic upgrade head` against the copy (the unit's
+`ExecStartPre` runs it again on start, which is a no-op). Because this is a copy, a failed
+migration costs nothing — re-run `just candidate` to rebuild it.
 
-Because this is a copy, a failed migration costs nothing — delete and re-copy.
+The copy carries `alembic_version` from the live DB, so `stamp head` is only needed for a copy
+that predates Alembic (none, since the live DB was stamped 2026-10-18).
 
-### Step 4 — run the candidate on 8001 and validate
+### Step 4 — validate on 8001
 
-```bash
-DATABASE_URL=sqlite+aiosqlite:////home/galeb/meals-data-next/meals.db \
-  uv run fastapi run src/main.py --host 0.0.0.0 --port 8001
-```
-
-`fastapi run` listens on `0.0.0.0` with reload off; `PORT` may be set instead of `--port`.
-Reach it over Tailscale at `http://<pi-tailscale-ip>:8001` and exercise the flows that
-changed, plus the smoke checks in section 7. The temporary port is only reachable on the
-tailnet.
+`just candidate` has already started the candidate as `meals-next.service` (reload off,
+`--port 8001`). Reach it over Tailscale at `http://<pi-tailscale-ip>:8001` and exercise the
+flows that changed, plus the smoke checks in section 6. Edits made while validating land in
+the copy, never in live data. Stop it with `just candidate stop` when you are done comparing.
 
 ### Step 5 — cut over
 
-Stop using the live app (principle 5), then:
-
 ```bash
-# 1. stop the live service
-systemctl stop meals
-# 2. if you want the prepared database, swap it in; otherwise migrate the live file now
-#    (do this only with the old process stopped)
-# 3. remove stale sidecars if you replaced the file
-rm -f /home/galeb/meals-data/meals.db-wal /home/galeb/meals-data/meals.db-shm
-# 4. start the new release
-systemctl start meals
+just candidate promote
 ```
 
-If nothing wrote to the live DB between step 1's backup and the cutover, the validated
-candidate copy *is* current and step 5 is a file move plus restart — seconds of downtime. If
-in doubt, re-copy the live DB after stopping and run `alembic upgrade head` on it directly
-(downtime = migration time, which is why the prepared-copy path is preferred).
+That takes a **fresh verified backup of the live DB**, fast-forwards the live checkout to the
+candidate commit, runs `uv sync --frozen`, reinstalls `meals.service` if it changed, restarts
+it (the unit runs `alembic upgrade head` against the **live** DB) and waits for `/health`, then
+stops the candidate.
+
+The candidate's database copy is deliberately **not** promoted: the live DB may have changed
+since the copy was taken (the single user keeps using the app), so the cutover migrates the
+live file after backing it up. Downtime is the restart plus the migration, not the validation.
+If the cutover fails, the script prints the status, logs, previous commit and the pre-cutover
+backup path, and exits non-zero.
 
 ### Step 6 — verify
 
@@ -235,18 +227,27 @@ days, timings).
 
 ### Step 7 — roll back (only if needed)
 
+`just candidate promote` prints the exact commands on failure. In short:
+
 ```bash
-# stop the new instance
-# restore the file:  cp '<BACKUP>' /home/galeb/meals-data/meals.db
-# remove -wal/-shm, then start the previous checkout
+sudo systemctl stop meals
+git -C /home/galeb/meals reset --hard <previous-commit>
+( cd /home/galeb/meals && uv sync --frozen )
+# restore the database only if the migration was not backward-compatible:
+#   cp '<BACKUP>' /home/galeb/meals-data/meals.db
+#   rm -f /home/galeb/meals-data/meals.db-wal /home/galeb/meals-data/meals.db-shm
+sudo systemctl start meals
 ```
 
-Keep the previous release directory and the pre-cutover backup until you are satisfied.
+The candidate is still running on `:8001` for comparison until `just candidate stop`.
 
 ### Step 8 — clean up
 
-Stop the 8001 candidate, remove the worktree/candidate directory, and keep the backup per
-your retention. Only now is the upgrade "done".
+```bash
+just candidate clean      # stops it and removes the worktree, database copy and unit
+```
+
+Keep the backup per your retention. Only now is the upgrade "done".
 
 ---
 
@@ -297,6 +298,11 @@ Once one manual cutover has worked, fold it into tooling (Admin 1 + Admin 12 ste
   → `uv sync --frozen` → reinstall the unit if changed → `systemctl restart meals` (migrations
   run in `ExecStartPre`) → poll `/health` → print status/logs/rollback and exit non-zero on
   failure. `DRY_RUN=1 just deploy` shows the plan.
+- The side-by-side candidate is tooled (`scripts/candidate.sh`, `deploy/meals-next.service`):
+  `just candidate` starts/refreshes the `:8001` candidate against a database copy,
+  `just candidate promote` backs up the live DB, fast-forwards, restarts and health-checks,
+  and `stop`/`clean` retire it (Admin 12 step 6). The first real validation and cutover are
+  still to be run.
 - The rollback procedure and `journalctl -u meals -f` are documented in `README.md` and
   `deploy/README.md`. (Done.)
 
@@ -323,4 +329,6 @@ Once one manual cutover has worked, fold it into tooling (Admin 1 + Admin 12 ste
 - [ ] `just backup` and a documented restore both work and have been tested on a copy.
 - [ ] A candidate has been run on 8001 against a copy and validated with real data.
 - [ ] A cutover has been performed and the previous release + backup are retained.
-- [x] The process is captured in `just deploy` / the systemd unit and `README.md`.
+- [x] The process is captured in `just deploy` / the systemd unit and `README.md`; candidate
+  tooling is also committed (`just candidate` / `just candidate promote`). The two candidate
+  boxes above stay unticked until the first real run and cutover on the Pi.

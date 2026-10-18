@@ -27,6 +27,10 @@ alias d := deploy
 @deploy:
     bash scripts/deploy.sh
 
+# Side-by-side validation: start [ref] | stop | clean | promote (run on the host).
+@candidate action="start" *args:
+    bash scripts/candidate.sh {{action}} {{args}}
+
 alias m := migrate
 
 # Apply pending schema migrations to the configured database (honours .env).

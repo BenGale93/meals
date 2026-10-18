@@ -539,12 +539,19 @@ Migrate deliberately, because mypy and pyrefly strict modes are not equivalent:
    unused mypy ignores, then confirm `pyrefly check` stays clean with the coverage gate
    still passing.
 
-### 12. Run upgrades side-by-side (blue/green) rather than in place — P1
+### 12. Run upgrades side-by-side (blue/green) rather than in place — P1 (tooled; first run pending)
 
 The app is always running on the Pi, so rather than stopping it, editing the checkout, and
 hoping a migration works, build and validate a candidate copy **next to** the live app, then
 do a short cutover. This is the practical answer to "upgrade without risking the data or
 long downtime", and it composes with Admin items 1 and 2.
+
+**Tooled:** `just candidate` starts/refreshes a candidate worktree on `:8001` against a copy
+of the live DB (`scripts/candidate.sh`, `deploy/meals-next.service`); `just candidate promote`
+takes a fresh live backup, fast-forwards the live checkout, restarts it (migrations run in
+`ExecStartPre`), health-checks and stops the candidate; `just candidate stop` / `clean` retire
+it. The numbered steps below are what that automates; the first real validation and cutover
+are still to be run.
 
 1. Take a fresh backup of the live DB (see **Protect the live data**). The backup is what
    makes the final swap reversible.
@@ -562,13 +569,14 @@ long downtime", and it composes with Admin items 1 and 2.
    restart — seconds, not the length of a migration.
 5. Roll back by starting the previous checkout against the backup copy; keep the old
    checkout and DB copy on disk until you're satisfied.
-6. Once this is routine, fold it into `just deploy` / the systemd unit (Admin item 1) so a
-   cut is one command, and stop exposing the temporary port.
+6. Folded into tooling (done): `just candidate promote` is the one command and it stops the
+   candidate at cutover, freeing the temporary port; `just candidate clean` removes the
+   checkout, database copy and unit.
 
-Note the current hardcoded relative `DATABASE_URL` makes step 2/4 awkward (the candidate
-must run from a directory where the copy is named `meals.db`); doing Admin item 3 first
-makes this clean and explicit. Also make sure the temporary port is only reachable on the
-tailnet, and that the two instances never share a database file.
+Admin item 3 is done, so the candidate gets an explicit absolute `DATABASE_URL` and the live
+and candidate database files are unambiguous. The candidate port is only reachable on the
+tailnet, and the two instances never share a database file (the script refuses to start
+otherwise).
 
 See `migrate_plan.md` for the ordered, executable version of this, including the
 prerequisite TODO items and the commands.
