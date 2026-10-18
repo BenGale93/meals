@@ -85,6 +85,16 @@ class TestRecipesAPI:
 
         assert response.text == external("uuid:1c790be2-234d-4760-a157-e9f5674bc83e.txt")
 
+    async def test_get_missing_recipe(self, client: AsyncClient):
+        response = await client.get("/recipe/9999")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    async def test_edit_missing_recipe(self, client: AsyncClient):
+        response = await client.get("/recipe/9999/edit")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
 
 class TestNewRecipeAPI:
     async def test_get_new_page(self, client: AsyncClient):

@@ -2,7 +2,7 @@
 
 import typing as t
 
-from fastapi import Form
+from fastapi import Form, HTTPException, status
 from htmy import Component, html
 
 from meals.auth import CurrentUser  # noqa: TC001
@@ -207,6 +207,9 @@ async def edit_recipe(pk: int, repo: RecipeRepo, user: CurrentUser) -> RecipeRes
     """Create a new recipe using a form."""
     recipe = await repo.get(pk, user.pk)
 
+    if recipe is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe does not exist.")
+
     return RecipeResponse.model_validate(recipe)
 
 
@@ -215,5 +218,8 @@ async def edit_recipe(pk: int, repo: RecipeRepo, user: CurrentUser) -> RecipeRes
 async def get_recipe(pk: int, repo: RecipeRepo, user: CurrentUser) -> RecipeResponse:
     """Create a new recipe using a form."""
     recipe = await repo.get(pk, user.pk)
+
+    if recipe is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe does not exist.")
 
     return RecipeResponse.model_validate(recipe)
