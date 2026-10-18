@@ -13,3 +13,6 @@ wheels/
 .coverage
 *.db
 recipes.yaml
+
+# Local configuration (never commit)
+.env

@@ -1,0 +1,32 @@
+# meals.service — systemd unit for the self-hosted meals app on the Pi.
+#
+# Install / update:
+#   sudo cp deploy/meals.service /etc/systemd/system/meals.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now meals
+#
+# Configuration (notably DATABASE_URL) is read from /home/galeb/meals/.env via
+# EnvironmentFile below — see .env.example and migrate_plan.md. The leading "-"
+# means the unit still starts if .env does not exist yet.
+
+[Unit]
+Description=Meals Application
+After=network.target
+
+[Service]
+Type=simple
+User=galeb
+Group=galeb
+WorkingDirectory=/home/galeb/meals
+EnvironmentFile=-/home/galeb/meals/.env
+Environment=PYTHONUNBUFFERED=1
+# --frozen: never re-resolve dependencies at start; sync happens in the deploy step.
+ExecStart=/home/galeb/.local/bin/uv run --frozen fastapi run src/main.py
+Restart=on-failure
+RestartSec=5
+SyslogIdentifier=meals
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

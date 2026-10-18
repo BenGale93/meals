@@ -28,6 +28,48 @@ Before finishing any item run `just` (lint + type_check + test). Coverage is enf
 (`tests/test_api.py`, `tests/test_web.py`, `tests/conftest.py`) and update
 `inline-snapshot` snapshots only after eyeballing the new output.
 
+## Protect the live data (read this first)
+
+The production database is a single SQLite file living **inside the git checkout** on the
+Pi — `galeb@192.168.1.135:/home/galeb/meals/meals.db` — and it holds real data. Treat the
+following as prerequisites for Admin items 1–4: no migration, dependency upgrade, or deploy
+change should be attempted until they are done.
+
+**Status:** step 1 (backup) is done — copies exist on the Pi and locally. Steps 2–5 are
+outstanding. Note that the existing backup is a point-in-time snapshot and will not include
+later edits to the app's data, so **refresh it (step 1) before every migration or deploy**;
+do not treat it as permanently done.
+
+- [x] **1. Back up using SQLite's backup API — not `cp`.** A backup has been taken and copies
+  are held on the Pi and locally. For future refreshes, copying a live database with `cp` can
+  capture a torn file and misses the `-wal`/`-shm` sidecars, so use
+  `sqlite3 /home/galeb/meals/meals.db ".backup '/home/galeb/meals-backups/meals-$(date +%F-%H%M).db'"`
+  (or, if the `sqlite3` CLI isn't installed on the Pi, Python's `sqlite3.Connection.backup`).
+  Verify a copy by opening it read-only and counting rows (`users`, `recipes`,
+  `recipe_ingredients`, …), and keep at least one copy off the Pi.
+- [ ] **2. Move the database out of the checkout** to a stable absolute path (e.g.
+  `/home/galeb/meals-data/meals.db`, or `~/.local/share/meals/`). The file is
+  `*.db`-gitignored, so a `git clean -fdx`, a fresh clone, or a deploy script that rsyncs
+  with `--delete` will silently destroy it. This depends on Admin item 3 (env-driven
+  `DATABASE_URL`); point the app **and** Alembic at the same absolute path.
+- [ ] **3. Never let the test suite or dev tooling point at production.** Right now
+  `tests/test_app.py::test_lifespan_init_models` runs `init_models()` (i.e. `create_all`)
+  against the *relative* `meals.db` in the current directory, so running `just test` from
+  `/home/galeb/meals` touches the live file. Make the path an env var that tests override
+  to `tmp_path`, or set `DATABASE_URL` before importing the app. Also delete or guard the
+  commented-out `Base.metadata.drop_all` line in `src/meals/database/session.py` — a stray
+  uncomment would wipe the database.
+- [ ] **4. Adopt Alembic against the real schema, don't recreate it.** Generate the initial
+  migration from the current models, then run `alembic stamp head` on the existing
+  database (marking it as already migrated) instead of `upgrade`, so Alembic never tries to
+  re-create the tables that are already there. Test the first real migration on a **copy**
+  of the live DB before running it in place. This matches Admin item 2.
+- [ ] **5. Make the deploy flow backup-then-migrate, and rollback a file swap.** `just deploy`
+  should take a verified backup before running migrations; the documented restore path is:
+  stop the service, restore the `.db` file (and remove any stale `-wal`/`-shm`), start the
+  service, verify. Keep the previous release on disk so a code rollback is a checkout and
+  restart, not a rebuild. See Admin item 12 for the side-by-side version of this.
+
 ## Priorities at a glance
 
 | Item | Priority |
@@ -43,6 +85,7 @@ Before finishing any item run `just` (lint + type_check + test). Coverage is enf
 | Admin 3 — env-driven config / DB path | P1 |
 | Admin 4 — backups / export of `meals.db` | P1 |
 | Admin 11 — migrate mypy → pyrefly | P1 |
+| Admin 12 — side-by-side (blue/green) upgrades | P1 |
 | Bug 9 — `hx-ext="json-enc"` never loaded | P2 |
 | Bug 1 — global uniqueness constraints | P2 (latent) |
 | Bug 4 — cross-user planned-day auth hole | P2 (latent) |
@@ -245,24 +288,36 @@ rejected cases.
 
 ### 1. A better way to deploy to the Pi — P1
 
-Deployment is currently manual and undocumented. There is no `Dockerfile`/compose file or
-systemd unit, and `just start` runs `fastapi dev src/main.py` — the development server
-(auto-reload, single process), which is not meant to run unattended. The goal is a
-repeatable, one-command release that survives reboots and upgrades without data loss.
+Deployment already runs under systemd, but the unit is **not in the repository**. A
+`meals.service` unit exists at `/etc/systemd/system/meals.service` (enabled, started
+2026-10-01) whose `ExecStart` is already the production command
+`uv run fastapi run src/main.py`, `WorkingDirectory` is the checkout `/home/galeb/meals`, and
+it listens on `0.0.0.0:8000` (LAN clients at `192.168.1.x` reach it in the logs). So the
+server command itself is fine; the problem is that the unit lives outside the checkout and is
+therefore unversioned, undocumented, and easy to lose or drift — `/home/galeb/meals` is not a
+pristine clone because of it, and there is no `just deploy`. (`just start` still runs
+`fastapi dev`, the auto-reload development server, which is for local work only.) The goal is
+to bring the existing unit under version control, harden it, and make the release one command
+that survives reboots and upgrades without data loss.
 
-For a single self-hosted service on one Pi, **systemd is the least machinery and the
-recommended path**:
+For a single self-hosted service on one Pi, **systemd remains the least machinery and the
+recommended path** — it is already the chosen path, so this is consolidation rather than a
+rewrite:
 
-- Serve with a production command (`fastapi run src/main.py`, or
-  `uv run uvicorn meals.app:app --host <address> --port 8000`) with no `--reload`. Bind to
-  the Tailscale interface (or localhost behind it) rather than `0.0.0.0` unless you
-  actually want LAN access; TLS is unnecessary inside Tailscale.
-- Commit a `meals.service` systemd unit with `WorkingDirectory` set to the checkout,
-  `ExecStart` using the uv-managed environment, `EnvironmentFile=` pointing at the env
-  config from Admin item 3, `Restart=on-failure`, and a `RestartSec`. Do **not** rely on
-  the working directory for the database path (see Admin item 3).
-- Run migrations as an `ExecStartPre=` step (Admin item 2) so a restart upgrades the
-  schema before the app starts.
+- Keep the production command (`fastapi run src/main.py`) with no `--reload`. It currently
+  binds `0.0.0.0` and LAN clients use it, so only narrow that to the Tailscale address if you
+  actually want LAN access gone; TLS is unnecessary inside Tailscale.
+- **Version-control the unit.** A hardened copy is now committed at
+  `deploy/meals.service` (with install notes in `deploy/README.md`): explicit `User=`/`Group=`,
+  `EnvironmentFile=-/home/galeb/meals/.env`, `Environment=PYTHONUNBUFFERED=1`,
+  `ExecStart=.../uv run --frozen fastapi run src/main.py`, `Restart=on-failure`,
+  `RestartSec=5`, `SyslogIdentifier=meals`, `NoNewPrivileges=true`, `PrivateTmp=true`.
+  Remaining work here is to actually install it on the Pi (`sudo cp deploy/meals.service
+  /etc/systemd/system/` then `daemon-reload` + `restart`) and confirm the running service
+  matches. Do **not** rely on the working directory for the database path (see Admin item 3).
+- Run a verified database backup, then migrations, as `ExecStartPre=` steps (Admin item 2
+  and **Protect the live data**), so a restart upgrades the schema safely and a failed
+  upgrade can be rolled back by restoring the file.
 - Add a `just deploy` target (or `scripts/deploy.sh`) that performs the whole release:
   fetch/rsync the new code, `uv sync --frozen`, run migrations, restart the service, then
   poll `/health` and fail loudly if it doesn't come back. Keeping the previous release on
@@ -290,8 +345,11 @@ Pi-specific details to get right at the same time:
 currently requires deleting `meals.db` (its own docstring admits this) — and on a
 Raspberry Pi that means losing your recipes, plans, and timings. Introduce Alembic with an
 initial migration, wire the upgrade step into the deploy flow (Admin item 1), and migrate
-the existing database. This is the prerequisite for the labels work (Features item 1),
-which adds several tables, and it is the single most valuable item for data durability.
+the existing database. For the existing database, use the baseline + `alembic stamp head`
+approach in **Protect the live data** above so the initial migration marks the
+already-present tables as applied instead of trying to recreate them. This is the prerequisite for the labels
+work (Features item 1), which adds several tables, and it is the single most valuable item
+for data durability.
 
 ### 3. Make configuration env-driven — P1
 
@@ -334,7 +392,8 @@ warning on Python 3.14 — check whether an upgrade or alternative is needed.
 ### 7. Sort out `.gitignore` and untracked guidance — P2
 
 The repo `.gitignore` only covers `__pycache__`, `.venv`, `.coverage`, `*.db`, and
-`recipes.yaml`. Cache directories (`.mypy_cache/`, `.pytest_cache/`, `.ruff_cache/`,
+`recipes.yaml` (plus `.env`, added with the Admin item 3 scaffolding). Cache directories
+(`.mypy_cache/`, `.pytest_cache/`, `.ruff_cache/`,
 `.import_linter_cache/`) are currently ignored only by a developer's global git config,
 and `AGENTS.md` is ignored globally and therefore **not tracked in the repo**. Decide
 whether `AGENTS.md` should be committed (it holds the repository guidelines) and add the
@@ -350,7 +409,10 @@ behind), verify `just` passes, review the schema design (e.g. `SubCategory.name`
 unique within a category, `Category.sub_categories` is typed as a single item), and either
 finish/merge it or close it with a note. Do not duplicate this work in Features item 1.
 Also clean up the stale `tests/api_tests/` directory left on disk from that branch (only a
-`__pycache__` remains) so it can't confuse a later checkout.
+`__pycache__` remains) so it can't confuse a later checkout. The branch is genuinely
+unmerged and not deployed (the Pi database has no labels tables); note that the dev
+checkout's own `meals.db` *does* contain label tables from an earlier experiment, so it is
+not a valid stand-in for the production schema.
 
 ### 9. Tidy tooling and documentation — P3
 
@@ -439,6 +501,40 @@ Migrate deliberately, because mypy and pyrefly strict modes are not equivalent:
 7. Once green, remove `mypy` from the dependencies and delete `[tool.mypy]` plus any now-
    unused mypy ignores, then confirm `pyrefly check` stays clean with the coverage gate
    still passing.
+
+### 12. Run upgrades side-by-side (blue/green) rather than in place — P1
+
+The app is always running on the Pi, so rather than stopping it, editing the checkout, and
+hoping a migration works, build and validate a candidate copy **next to** the live app, then
+do a short cutover. This is the practical answer to "upgrade without risking the data or
+long downtime", and it composes with Admin items 1 and 2.
+
+1. Take a fresh backup of the live DB (see **Protect the live data**). The backup is what
+   makes the final swap reversible.
+2. Create a candidate directory (e.g. `/home/galeb/meals-next`) holding the new code and a
+   **copy** of the database. Only ever run one process against a given SQLite file — one
+   writer at a time — so the candidate must use its own copy, not the live file.
+3. Run migrations (Admin item 2) against the candidate copy, then start the candidate on a
+   different port, e.g.
+   `fastapi run src/main.py --host 0.0.0.0 --port 8001` (reload is off by default; `PORT`
+   can be set instead). Reach it over Tailscale at `http://<pi-tailscale-ip>:8001` and
+   exercise the changed flows against real data.
+4. Cut over: stop the live instance, put the migrated DB in the canonical path (or repoint
+   the new app at it via `DATABASE_URL`), and start the new instance on the normal port.
+   Because the new database was prepared ahead of time, the only downtime is the process
+   restart — seconds, not the length of a migration.
+5. Roll back by starting the previous checkout against the backup copy; keep the old
+   checkout and DB copy on disk until you're satisfied.
+6. Once this is routine, fold it into `just deploy` / the systemd unit (Admin item 1) so a
+   cut is one command, and stop exposing the temporary port.
+
+Note the current hardcoded relative `DATABASE_URL` makes step 2/4 awkward (the candidate
+must run from a directory where the copy is named `meals.db`); doing Admin item 3 first
+makes this clean and explicit. Also make sure the temporary port is only reachable on the
+tailnet, and that the two instances never share a database file.
+
+See `migrate_plan.md` for the ordered, executable version of this, including the
+prerequisite TODO items and the commands.
 
 ---
 
