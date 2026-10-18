@@ -35,22 +35,25 @@ Pi — `galeb@192.168.1.135:/home/galeb/meals/meals.db` — and it holds real da
 following as prerequisites for Admin items 1–4: no migration, dependency upgrade, or deploy
 change should be attempted until they are done.
 
-**Status:** steps 1, 3 and 4 are done in code (step 4's live `stamp` is a one-off after this
-release is deployed, and is folded into the first cutover, `migrate_plan.md` section 4).
-Steps 2 and 5 are outstanding. Note that the existing backup is a point-in-time snapshot and
-will not include later edits to the app's data, so **refresh it (step 1) before every
-migration or deploy**; do not treat it as permanently done.
+**Status:** steps 1–4 are done. The live database now lives at
+`/home/galeb/meals-data/meals.db` (moved 2026-10-18), `/home/galeb/meals/.env` points the app
+and Alembic at it, and the live DB is stamped at the Alembic baseline. Step 5 is outstanding.
+Note that the existing backup is a point-in-time snapshot and will not include later edits to
+the app's data, so **refresh it (step 1) before every migration or deploy**; do not treat it as
+permanently done.
 
 - [x] **1. Back up using SQLite's backup API — not `cp`.** A backup has been taken and copies
   are held on the Pi and locally. For future refreshes, use `just backup` (see Admin item 4):
   it wraps `sqlite3 ... ".backup ..."`, so it never `cp`s a live file (which can capture a
   torn database and misses the `-wal`/`-shm` sidecars), and it reopens the copy and prints
   per-table row counts so you can confirm it is complete. Keep at least one copy off the Pi.
-- [ ] **2. Move the database out of the checkout** to a stable absolute path (e.g.
-  `/home/galeb/meals-data/meals.db`, or `~/.local/share/meals/`). The file is
-  `*.db`-gitignored, so a `git clean -fdx`, a fresh clone, or a deploy script that rsyncs
-  with `--delete` will silently destroy it. This depends on Admin item 3 (env-driven
-  `DATABASE_URL`); point the app **and** Alembic at the same absolute path.
+- [x] **2. Move the database out of the checkout.** Done 2026-10-18: the live DB is at
+  `/home/galeb/meals-data/meals.db`, `/home/galeb/meals/.env` sets
+  `DATABASE_URL=sqlite+aiosqlite:////home/galeb/meals-data/meals.db`, and the service was
+  restarted and verified (`/health` OK, row counts unchanged, `alembic current` = head,
+  `alembic check` clean). `just backup` follows `.env`, so it now reads and writes outside the
+  checkout. `/home/galeb/meals` is code-only apart from the gitignored `.env`. A `git clean
+  -fdx` or fresh clone can no longer touch the data.
 - [x] **3. Never let the test suite or dev tooling point at production.** Done:
   `DATABASE_URL` is now read from the environment via `meals.settings.database_url()` (root
   `conftest.py` forces `sqlite+aiosqlite:///:memory:` before any `meals` import, so the suite
@@ -62,11 +65,10 @@ migration or deploy**; do not treat it as permanently done.
   the app no longer calls `create_all` at start-up (so a mis-set path fails loudly instead of
   creating an empty schema). The baseline was generated from the models and validated on a
   **copy** of the live DB: `alembic stamp head` marks it applied, `upgrade head` is then a
-  no-op, `alembic check` reports no drift, and row counts are unchanged. The one remaining
-  action — stamping the real database — is a one-off after this release is deployed (it only
-  adds `alembic_version`), and is folded into the first cutover (migrate_plan.md §4). Do it
+  no-op, `alembic check` reports no drift, and row counts are unchanged. The live database
+  was stamped at `8b8ea410224a (head)` on 2026-10-18 when it was moved (step 2). Do this
   before enabling `ExecStartPre=alembic upgrade head`, which would otherwise fail with
-  `table ingredients already exists`.
+  `table ingredients already exists`; that is now safe and is the only remaining wiring.
 - [ ] **5. Make the deploy flow backup-then-migrate, and rollback a file swap.** `just deploy`
   should take a verified backup before running migrations; the documented restore path is:
   stop the service, restore the `.db` file (and remove any stale `-wal`/`-shm`), start the
@@ -341,7 +343,7 @@ Pi-specific details to get right at the same time:
 - Decide on the SQLite journal mode (WAL is kinder to an SD card and to the backup/upgrade
   flow) when foreign keys are enabled (bug 11).
 
-### 2. Data-preserving migrations (Alembic) — P1 (done in code; live stamp at cutover)
+### 2. Data-preserving migrations (Alembic) — P1 (done; ExecStartPre wiring remains)
 
 `init_models`/`create_all` is gone; Alembic now owns the schema. `uv add alembic` plus
 `alembic init -t async migrations` set up `alembic.ini` and `migrations/`, with `env.py`
@@ -355,10 +357,11 @@ without replaying it, `alembic check` reports no drift, and a fresh `alembic upg
 produces exactly the production schema (verified by comparing `.schema` dumps). Tests still
 build their schema directly from the metadata, so they never touch the real file.
 
-`just migrate` applies pending migrations (honouring `.env`). The remaining operational
-steps — `alembic stamp head` on the live database and adding
-`ExecStartPre=... alembic upgrade head` to `deploy/meals.service` — are folded into the first
-cutover (migrate_plan.md section 4). See **Protect the live data** step 4.
+`just migrate` applies pending migrations (honouring `.env`). The live database was stamped at
+the baseline on 2026-10-18 and `.env` points at it (see **Protect the live data** steps 2 and
+4). The only remaining wiring is adding `ExecStartPre=... alembic upgrade head` to
+`deploy/meals.service`, which is now safe and belongs with the deploy tooling (Admin item 1 /
+migrate_plan.md section 5).
 
 This is the prerequisite for the labels work (Features item 1), which adds several tables,
 and it is the single most valuable item for data durability.
@@ -373,11 +376,10 @@ unchanged). `meals.database.session` builds its engine from it, `.env.example` d
 setting, and `deploy/meals.service` loads it via `EnvironmentFile=`. Tests are insulated (see
 **Protect the live data** step 3).
 
-What remains is purely operational, and belongs to the first cutover rather than this item:
-create the real `.env` on the Pi pointing at the absolute
-`/home/galeb/meals-data/meals.db`, move the database there, and restart. Do this **only** as
-part of migrate_plan.md section 4 — creating `.env` before the file is moved makes the app
-start against an empty database.
+The operational half is also done (2026-10-18): `/home/galeb/meals/.env` sets the absolute
+`DATABASE_URL`, the database was moved to `/home/galeb/meals-data/meals.db`, and the service
+was restarted and verified. See **Protect the live data** step 2 and migrate_plan.md
+section 4.
 
 ### 4. Backups / export of `meals.db` — P1 (done)
 

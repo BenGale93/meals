@@ -44,24 +44,24 @@ matters — each depends on the one above it.
 | # | TODO item | Why it is required | Blocking? |
 | --- | --- | --- | --- |
 | 1 | **Admin 3** — env-driven config (`DATABASE_URL`) | An absolute path from the environment is what lets the candidate and the live app use different DB files and lets the service be started from anywhere. | Yes |
-| 2 | **Data safety 3** — tests must not touch production | `tests/test_app.py::test_lifespan_init_models` runs `create_all` against the relative `meals.db`; until fixed, running `just` in the Pi checkout opens the live DB. Also guard/remove the commented `drop_all` in `src/meals/database/session.py`. | Yes |
-| 3 | **Admin 2 + Data safety 4** — Alembic, baseline + `alembic stamp head` (done in code; live stamp at cutover) | Turns "delete the DB to change schema" into forward migrations. Baseline marks the existing tables as applied so the first migration never tries to recreate them. | Yes (for any schema change; recommended before all cutovers) |
+| 2 | **Data safety 3** — tests must not touch production (done) | The old lifespan test ran `create_all` against the relative `meals.db`, so `just` in the Pi checkout could open the live DB. The root `conftest.py` now forces an in-memory URL and the `drop_all` line is gone. | Yes |
+| 3 | **Admin 2 + Data safety 4** — Alembic, baseline + `alembic stamp head` (done) | Turns "delete the DB to change schema" into forward migrations. Baseline marks the existing tables as applied so the first migration never tries to recreate them. | Yes (for any schema change; recommended before all cutovers) |
 | 4 | **Admin 4 + Data safety 1** — `just backup` / documented restore (done) | The cutover is only reversible if backup+restore is a one-liner you have actually run. | Yes |
-| 5 | **Data safety 2** — move the DB out of the checkout | Stops `git clean`, re-clone, or `rsync --delete` from deleting the data. Folded into the first cutover (section 4). | Yes |
+| 5 | **Data safety 2** — move the DB out of the checkout (done 2026-10-18) | Stops `git clean`, re-clone, or `rsync --delete` from deleting the data. Folded into the first cutover (section 4). | Yes |
 | 6 | **Admin 12** — this side-by-side process | The procedure itself. | Yes |
 | 7 | **Admin 1** — systemd unit + `just deploy` | Reduces the manual cutover to `just deploy` and makes stop/start deterministic. Not needed for the very first manual cutover. | Recommended |
 | 8 | **Bug 11** — enable SQLite foreign keys + pick WAL | WAL is kinder to the SD card and makes `.backup`/upgrades safer. Natural to set alongside Admin 3. | Recommended |
 | 9 | **Admin 5** — logging + global exception handler | Makes candidate validation and rollback diagnosis much easier (journald logs rather than bare 500s). | Optional |
 | 10 | **Admin 10 / Admin 11** — dependency refresh / mypy→pyrefly | These are *payloads* for a later candidate, not prerequisites. Do them on the candidate, never directly on live. | Optional |
 
-**Progress (2026-10-18):** items 1, 2, 3 and 4 are **done** — `DATABASE_URL` is read from the
-environment via `meals/settings.py` (with `.env.example`), the test suite is forced onto an
-in-memory database by the root `conftest.py`, the `drop_all` line is gone, `just backup`
-provides a verified, documented backup (restore steps in `deploy/README.md`), and Alembic now
-owns the schema with a baseline validated against a copy of the Pi database. The systemd unit
-is committed and installed (the unit half of item 7). Stamping the live database is safe as
-soon as this release is deployed (section 4); the `ExecStartPre=` migration step and item 5,
-plus the DB relocation itself, are still outstanding.
+**Progress (2026-10-18):** items 1–5 are **done**. `DATABASE_URL` is read from the environment
+via `meals/settings.py` (with `.env.example`), the test suite is forced onto an in-memory
+database by the root `conftest.py`, the `drop_all` line is gone, `just backup` provides a
+verified, documented backup (restore steps in `deploy/README.md`), Alembic owns the schema, and
+the live database has been stamped and moved to `/home/galeb/meals-data/meals.db` with `.env`
+pointing at it (section 4). The systemd unit is committed and installed (the unit half of item
+7). Still outstanding: `ExecStartPre=alembic upgrade head`, `just deploy` (item 7), and
+items 8–10.
 
 ### 2.1 Admin 3 — make the DB path explicit (done)
 
@@ -107,9 +107,8 @@ label tables and is not representative — see TODO → Admin 8):
   `.schema`), and `alembic downgrade base` removes it cleanly.
 
 Running `alembic upgrade head` against an existing, **unstamped** database fails with
-`sqlite3.OperationalError: table ingredients already exists`. That is why the live database
-must be stamped before `ExecStartPre=alembic upgrade head` is enabled, and why both actions
-belong to the first cutover (section 4) rather than to this change.
+`sqlite3.OperationalError: table ingredients already exists`. That is why the live database was
+stamped when it was moved (section 4), before `ExecStartPre=alembic upgrade head` is enabled.
 
 ```bash
 just migrate                       # alembic upgrade head, honouring .env
@@ -253,44 +252,29 @@ your retention. Only now is the upgrade "done".
 
 ## 4. First cutover specifics (relocating the database)
 
-The first cutover is special because it also moves the DB out of the checkout
-(Data safety 2) and stamps it at the Alembic baseline. Because the live app only reads
-`DATABASE_URL` after Admin 3 ships, the sequence is:
+The first cutover was special because it also moved the DB out of the checkout (Data safety 2)
+and stamped it at the Alembic baseline. **It was completed on 2026-10-18:**
 
-1. Complete prerequisites 1–4 in the dev checkout and merge to the release ref.
-2. Take a fresh verified backup (`just backup`) and stop the service. On the Pi,
-   `mkdir -p /home/galeb/meals-data` and **move** (not copy) the live database there:
+1. Prerequisites 1–4 were merged and deployed (`d70781f`), and the live DB was stamped
+   (`alembic current` → `8b8ea410224a (head)`).
+2. A fresh verified backup was taken with `just backup /home/galeb/meals-backups`, the service
+   was stopped, any WAL was checkpointed, and the database was **moved** (not copied):
    ```bash
-   systemctl stop meals
+   sudo systemctl stop meals
+   python3 -c "import sqlite3; c=sqlite3.connect('meals.db'); print(c.execute('PRAGMA wal_checkpoint(TRUNCATE)').fetchone()); c.close()"
+   mkdir -p /home/galeb/meals-data
    mv /home/galeb/meals/meals.db /home/galeb/meals-data/meals.db
    rm -f /home/galeb/meals/meals.db-wal /home/galeb/meals/meals.db-shm
    ```
-3. **Stamp the moved database at the baseline** before any migration runs (skip if it was
-   already stamped when this release was deployed — `alembic current` will show `head`):
-   ```bash
-   DATABASE_URL=sqlite+aiosqlite:////home/galeb/meals-data/meals.db \
-     uv run alembic stamp head
-   uv run alembic current          # expect <rev> (head)
-   ```
-   This only writes `alembic_version`; it does not replay the baseline. Confirm the row
-   counts still match the backup. Skipping this makes the next `alembic upgrade head` fail
-   with `table ingredients already exists`.
-4. Create `/home/galeb/meals/.env` with the absolute
-   `DATABASE_URL=sqlite+aiosqlite:////home/galeb/meals-data/meals.db`, then enable the
-   `ExecStartPre=` line documented in `deploy/meals.service`, reinstall the unit, and start
-   the release:
-   ```bash
-   sudo cp deploy/meals.service /etc/systemd/system/meals.service
-   sudo systemctl daemon-reload
-   sudo systemctl start meals
-   ```
-   The app no longer creates tables, so opening the wrong file would fail rather than create
-   an empty DB — but verify the row counts immediately anyway (section 7). This is the one
-   moment where a mis-set path looks exactly like data loss.
-5. `/home/galeb/meals` is now code-only; the data lives in `/home/galeb/meals-data/`.
+3. `/home/galeb/meals/.env` was created with the absolute `DATABASE_URL`. `just backup` then
+   targeted `/home/galeb/meals-data/meals.db` and printed the same row counts, `alembic
+   current` was `head`, and `alembic check` reported no drift.
+4. The service was started and verified: `/health` OK, a clean startup log, and the old
+   `/home/galeb/meals/meals.db` is gone. `/home/galeb/meals` is now code-only apart from the
+   gitignored `.env`.
 
-After this, candidates and cutovers are routine and the DB is outside the reach of git and
-deploy tooling.
+**Remaining:** enable the `ExecStartPre=` line now that the live DB is stamped, then reinstall
+the unit and restart. That belongs with the deploy tooling (Admin 1 / section 5).
 
 ---
 
@@ -301,13 +285,13 @@ Once one manual cutover has worked, fold it into tooling (Admin 1 + Admin 12 ste
 - **Commit the existing unit** from `/etc/systemd/system/meals.service` into the repo
   (`deploy/meals.service`) and harden it: explicit `User=`/`Group=`, `EnvironmentFile=`
   (Admin 3), `Restart=on-failure`, `RestartSec`, and
-  `ExecStart=uv run --frozen fastapi run src/main.py`.
+  `ExecStart=uv run --frozen fastapi run src/main.py`. (Done.)
 - Consider pointing `WorkingDirectory`/`ExecStart` at a `current` symlink
   (`/home/galeb/meals-current` → `/home/galeb/releases/<date>`) so a cutover is a symlink
   swap plus `systemctl restart meals`, and rollback is swapping the link back.
 - `ExecStartPre=` runs `alembic upgrade head` (and, later, a verified backup), so a restart
-  upgrades safely and a failed upgrade is restore-able. Enable it during the first cutover
-  (section 4) only after the live database has been stamped.
+  upgrades safely and a failed upgrade is restore-able. The live database is stamped, so this
+  is now safe to enable; the line is documented in the committed unit.
 - `just deploy` performs: fetch the release → `uv sync --frozen` → backup → migrate →
   `systemctl restart meals` → poll `/health` → fail loudly otherwise.
 - Document the rollback procedure and `journalctl -u meals -f` in `README.md`.
@@ -329,9 +313,9 @@ Once one manual cutover has worked, fold it into tooling (Admin 1 + Admin 12 ste
 
 ## 7. Definition of done
 
-- [ ] Live DB lives outside the checkout at an absolute, env-driven path.
-- [ ] `just` no longer touches the live database.
-- [ ] Alembic upgrades the schema forward; the existing DB is stamped at the baseline.
+- [x] Live DB lives outside the checkout at an absolute, env-driven path.
+- [x] `just` no longer touches the live database.
+- [x] Alembic upgrades the schema forward; the existing DB is stamped at the baseline.
 - [ ] `just backup` and a documented restore both work and have been tested on a copy.
 - [ ] A candidate has been run on 8001 against a copy and validated with real data.
 - [ ] A cutover has been performed and the previous release + backup are retained.

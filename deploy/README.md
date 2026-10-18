@@ -24,9 +24,10 @@ location is explicit rather than derived from the working directory:
 DATABASE_URL=sqlite+aiosqlite:////home/galeb/meals-data/meals.db
 ```
 
-The app reads `DATABASE_URL` from the environment. Until the database is moved
-(`../migrate_plan.md` section 4), the default relative `sqlite+aiosqlite:///meals.db` is
-used, so the database remains at `/home/galeb/meals/meals.db`.
+The live database and `.env` were moved on 2026-10-18: the file is at
+`/home/galeb/meals-data/meals.db` and `/home/galeb/meals/.env` sets the absolute
+`DATABASE_URL` shown above. `/home/galeb/meals` is now code-only apart from the gitignored
+`.env`. For a fresh install, create `.env` only once the database is actually at that path.
 
 ## Migrations
 
