@@ -142,7 +142,10 @@ uniqueness with composite `UniqueConstraint("user_pk", "name")` and
 a name and plan the same day. If multi-user is not planned, consider closing this item
 with a note.
 
-### 2. Renaming a recipe onto an existing name raises a 500 — P1
+### 2. Renaming a recipe onto an existing name raises a 500 — P1 (done)
+
+**Fixed:** `RecipeRepository.update` now raises `RecipeAlreadyExistsError` when the target name
+belongs to a different recipe, and `PUT /api/v1/recipes` maps that to a 409.
 
 `RecipeRepository.update` (`src/meals/database/repository.py`) never checks for a name
 collision, even though `create` does. Updating a recipe so its `name` matches another of
@@ -155,7 +158,11 @@ This affects the single user directly (e.g. tidying up duplicates). Return
 `RecipeAlreadyExistsError` (the route already maps it to 409) or otherwise handle it, and
 add an API test.
 
-### 3. Duplicate ingredient name within one request raises a 500 — P1
+### 3. Duplicate ingredient name within one request raises a 500 — P1 (done)
+
+**Fixed:** `CreateRecipeRequest`/`UpdateRecipeRequest` now reject repeated ingredient names during
+validation (422), instead of letting `create` queue a duplicate `StoredIngredient` and flush an
+`IntegrityError` (or letting `update` silently pick one quantity).
 
 In `RecipeRepository.create`, the ingredient lookup runs inside `session.no_autoflush`, so
 a `StoredIngredient` added earlier in the same loop is not visible to the next lookup and
@@ -203,7 +210,10 @@ no password ever needs to leave the tailnet. Treat it as hardening / future-proo
   a long-lived signed session cookie (so the browser stops re-prompting for Basic auth)
   is probably the sweet spot.
 
-### 6. Recipe summary counts future meals — P1
+### 6. Recipe summary counts future meals — P1 (done)
+
+**Fixed:** `PlanRepository.summarise` only counts planned days on or before `date.today()` (the
+bound lives in the outer-join `ON` clause so unplanned recipes still appear with count 0).
 
 `PlanRepository.summarise` counts every linked `planned_days` row and takes `max(day)`
 with no upper date bound, so meals planned for next week are reported as "eaten" and
@@ -217,7 +227,11 @@ cross-user scoping from bug 4 is moot here). The existing `test_summarise` in
 `tests/test_api.py` deliberately plans a future date and expects it to count, so that test
 needs updating as part of the fix.
 
-### 7. Editing a recipe with a blank ingredient shows a raw validation dump — P1
+### 7. Editing a recipe with a blank ingredient shows a raw validation dump — P1 (done)
+
+**Fixed:** `update_recipe` filters out blank ingredient strings (like `new_recipe`) and reuses the
+shared `format_new_recipe_error` formatting, so clearing the last ingredient works and errors are
+readable rather than raw pydantic output.
 
 `update_recipe` in `src/meals/web/index.py` passes the submitted ingredient strings
 straight into `UpdateRecipeRequest`, while `new_recipe` in `src/meals/web/new.py` filters
@@ -232,7 +246,11 @@ Filter blank entries like the new-recipe route does, and reuse the friendly
 `format_new_recipe_error` formatting so the web error component is consistently readable.
 Add tests for clearing ingredients.
 
-### 8. Page shells are public but their content is authenticated — P1
+### 8. Page shells are public but their content is authenticated — P1 (done)
+
+**Fixed:** the `index`, `new`, `plan`, and `timings` page routes now take a `CurrentUser`
+dependency, so an unauthenticated page load returns 401 (with `WWW-Authenticate: Basic`) instead
+of rendering a shell whose HTMX fragments fail over XHR.
 
 `index`, `new`, `plan`, and `timings` page handlers in `src/meals/web/*.py` take no
 `CurrentUser` dependency, so `GET /`, `/new.html`, `/plan.html`, `/timings.html` render
@@ -254,7 +272,10 @@ currently ignores the unknown extension and falls back to form encoding, which i
 browser, then either load the extension and switch the route to a JSON body, or drop the
 attribute so the markup matches reality.
 
-### 10. Web recipe pages 500 on a missing recipe instead of 404 — P1
+### 10. Web recipe pages 500 on a missing recipe instead of 404 — P1 (done)
+
+**Fixed:** `get_recipe` and `edit_recipe` raise a 404 when `repo.get` returns `None`, matching the
+JSON API, instead of passing `None` into `RecipeResponse.model_validate`.
 
 `get_recipe` and `edit_recipe` in `src/meals/web/index.py` call `repo.get(pk, user.pk)`
 and pass the result (which may be `None`) straight into
