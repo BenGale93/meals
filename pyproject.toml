@@ -5,32 +5,32 @@ version = "0.1.0"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "aiosqlite>=0.21.0",
-    "fastapi[standard]>=0.119.0",
-    "fasthx[htmy]>=3.0.1",
-    "httpx>=0.28.1",
-    "pydantic>=2.12.3",
-    "pydantic-yaml>=1.6.0",
-    "python-multipart>=0.0.20",
-    "sqlalchemy>=2.0.44",
+  "aiosqlite>=0.21.0",
+  "fastapi[standard]>=0.119.0",
+  "fasthx[htmy]>=3.0.1",
+  "httpx>=0.28.1",
+  "pydantic>=2.12.3",
+  "pydantic-yaml>=1.6.0",
+  "python-multipart>=0.0.20",
+  "sqlalchemy>=2.0.44",
 ]
 license = "MIT"
 authors = [{ name = "Benjamin Askew-Gale" }]
 
 [dependency-groups]
 dev = [
-    { include-group = "lint" },
-    { include-group = "test" },
-    { include-group = "typing" },
+  { include-group = "lint" },
+  { include-group = "test" },
+  { include-group = "typing" },
 ]
 lint = ["import-linter>=2.5.2", "ruff>=0.14.1"]
 test = [
-    "pytest>=8.4.1",
-    "pytest-randomly>=4.0.1",
-    "pytest-cov>=7.0.0",
-    "pytest-asyncio>=1.2.0",
-    "inline-snapshot>=0.31.0",
-    "time-machine>=3.1.0",
+  "pytest>=8.4.1",
+  "pytest-randomly>=4.0.1",
+  "pytest-cov>=7.0.0",
+  "pytest-asyncio>=1.2.0",
+  "inline-snapshot>=0.31.0",
+  "time-machine>=3.1.0",
 ]
 typing = ["mypy>=1.18.2"]
 typing-test = [{ include-group = "test" }, { include-group = "typing" }]
@@ -78,11 +78,11 @@ disallow_subclassing_any = false
 
 [tool.coverage.report]
 exclude_also = [
-    "if t.TYPE_CHECKING",
-    "@t.overload",
-    "@abstractmethod",
-    "if TYPE_CHECKING",
-    "def __repr__",
+  "if t.TYPE_CHECKING",
+  "@t.overload",
+  "@abstractmethod",
+  "if TYPE_CHECKING",
+  "def __repr__",
 ]
 show_missing = true
 omit = ["main.py"]
@@ -92,9 +92,9 @@ branch = true
 
 [tool.pytest.ini_options]
 filterwarnings = [
-    "ignore::DeprecationWarning::",         # ignore deprecations from all modules
-    "default::DeprecationWarning:meals.*:", # except from mymodule
-    "ignore::UserWarning",
+  "ignore::DeprecationWarning::",         # ignore deprecations from all modules
+  "default::DeprecationWarning:meals.*:", # except from mymodule
+  "ignore::UserWarning",
 ]
 addopts = "--cov=src/ --cov-report="
 asyncio_mode = "auto"
@@ -109,3 +109,6 @@ layers = ["meals.api | meals.web", "meals.database"]
 
 [tool.inline-snapshot]
 format-command = "uv run ruff format --stdin-filename {filename}"
+
+[tool.pyrefly]
+project-excludes = ["**/build*"]
