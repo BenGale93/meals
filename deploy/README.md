@@ -1,12 +1,15 @@
 # Deployment
 
 The app runs as a systemd service on the Pi (`galeb@192.168.1.135`), inside a checkout at
-`/home/galeb/meals`, served by `uv run fastapi run src/main.py` on port `8000`.
+`/home/galeb/meals`, served by `uv run fastapi run src/main.py` on port `8000`. Releases are
+deployed with `just deploy` (see below).
 
 `meals.service` in this directory is the version-controlled copy of
 `/etc/systemd/system/meals.service`.
 
 ## Install / update the unit
+
+This is the first-install path; `just deploy` reinstalls the unit automatically when it changes.
 
 ```bash
 sudo cp deploy/meals.service /etc/systemd/system/meals.service
@@ -28,6 +31,36 @@ The live database and `.env` were moved on 2026-10-18: the file is at
 `/home/galeb/meals-data/meals.db` and `/home/galeb/meals/.env` sets the absolute
 `DATABASE_URL` shown above. `/home/galeb/meals` is now code-only apart from the gitignored
 `.env`. For a fresh install, create `.env` only once the database is actually at that path.
+
+The unit also pins `TZ=Europe/London`, so `date.today()` and the roast timings use local time
+regardless of the host default.
+
+## Deploying a release
+
+Run this **on the Pi**, in the checkout (it drives systemd and needs sudo):
+
+```bash
+DRY_RUN=1 just deploy   # show what would happen, change nothing
+just deploy             # back up, pull, sync, restart, health-check
+```
+
+`just deploy` (via `scripts/deploy.sh`) refuses to start unless the tracked tree is clean and
+`.env` exists, then:
+
+1. writes a verified backup with the SQLite online backup API (per-table row counts printed);
+2. `git pull --ff-only` and `uv sync --frozen`;
+3. installs `deploy/meals.service` if it changed (`daemon-reload`);
+4. restarts `meals` — the unit runs `alembic upgrade head` first — and polls
+   `http://127.0.0.1:8000/health` for up to 30 seconds.
+
+If the restart or health check fails it prints `systemctl status`, recent logs, and the
+rollback steps, then exits non-zero. It never rolls back automatically: restore the backup
+(see below) if the migration is not backward-compatible, then `git switch --detach
+<previous commit>`, `uv sync --frozen`, and restart.
+
+Run `just` (lint, type-check, tests) on the development machine before pushing; the Pi does
+not run the test suite. For a risky schema change, prefer the side-by-side process in
+[`../migrate_plan.md`](../migrate_plan.md) — `just deploy` restarts in place.
 
 ## Migrations
 
@@ -86,7 +119,8 @@ systemctl status meals --no-pager
 
 ## Upgrades and rollback
 
-Use the side-by-side (blue/green) process in [`../migrate_plan.md`](../migrate_plan.md):
+Routine releases use `just deploy` (above). For risky schema changes, use the side-by-side
+(blue/green) process in [`../migrate_plan.md`](../migrate_plan.md):
 build and validate a candidate on port `8001` against a **copy** of the database, then cut
 over with `systemctl restart meals`. Database safety rules (backup with SQLite's `.backup`,
 never `cp` a live file, one writer per database file) are in

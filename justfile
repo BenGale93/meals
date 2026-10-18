@@ -21,6 +21,12 @@ alias l := lint
 @start:
     uv run fastapi dev src/main.py
 
+alias d := deploy
+
+# Deploy on the Pi: verified backup, pull, sync, restart, health check (run on the host).
+@deploy:
+    bash scripts/deploy.sh
+
 alias m := migrate
 
 # Apply pending schema migrations to the configured database (honours .env).

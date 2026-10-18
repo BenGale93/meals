@@ -60,8 +60,8 @@ database by the root `conftest.py`, the `drop_all` line is gone, `just backup` p
 verified, documented backup (restore steps in `deploy/README.md`), Alembic owns the schema, and
 the live database has been stamped and moved to `/home/galeb/meals-data/meals.db` with `.env`
 pointing at it (section 4). The systemd unit is committed, installed, and runs
-`ExecStartPre=alembic upgrade head`. Still outstanding: the verified backup step and `just
-deploy` (item 7), and items 8–10.
+`ExecStartPre=alembic upgrade head`. `just deploy` now performs the verified backup and
+restart (item 7); items 8–10 remain.
 
 ### 2.1 Admin 3 — make the DB path explicit (done)
 
@@ -273,9 +273,9 @@ and stamped it at the Alembic baseline. **It was completed on 2026-10-18:**
    `/home/galeb/meals/meals.db` is gone. `/home/galeb/meals` is now code-only apart from the
    gitignored `.env`.
 
-**Remaining:** the `ExecStartPre=alembic upgrade head` step is now enabled in
-`deploy/meals.service` (installed and verified 2026-10-18). What is left is the verified backup
-before a restart and `just deploy` (Admin 1 / section 5).
+**Remaining:** `just deploy` (Admin 1) now takes the verified backup, pulls, syncs, restarts
+the service (whose `ExecStartPre=` applies migrations), and checks `/health`. The
+candidate/cutover steps below are still the way to validate a risky schema change first.
 
 ---
 
@@ -292,10 +292,13 @@ Once one manual cutover has worked, fold it into tooling (Admin 1 + Admin 12 ste
   swap plus `systemctl restart meals`, and rollback is swapping the link back.
 - `ExecStartPre=` runs `alembic upgrade head` (and, later, a verified backup), so a restart
   upgrades safely and a failed upgrade is restore-able. Enabled in the committed unit
-  (2026-10-18); a verified backup step still belongs in `just deploy`.
-- `just deploy` performs: fetch the release → `uv sync --frozen` → backup → migrate →
-  `systemctl restart meals` → poll `/health` → fail loudly otherwise.
-- Document the rollback procedure and `journalctl -u meals -f` in `README.md`.
+  (2026-10-18); `just deploy` takes the verified backup first.
+- `just deploy` is implemented (`scripts/deploy.sh`): verified backup → `git pull --ff-only`
+  → `uv sync --frozen` → reinstall the unit if changed → `systemctl restart meals` (migrations
+  run in `ExecStartPre`) → poll `/health` → print status/logs/rollback and exit non-zero on
+  failure. `DRY_RUN=1 just deploy` shows the plan.
+- The rollback procedure and `journalctl -u meals -f` are documented in `README.md` and
+  `deploy/README.md`. (Done.)
 
 ---
 
@@ -320,4 +323,4 @@ Once one manual cutover has worked, fold it into tooling (Admin 1 + Admin 12 ste
 - [ ] `just backup` and a documented restore both work and have been tested on a copy.
 - [ ] A candidate has been run on 8001 against a copy and validated with real data.
 - [ ] A cutover has been performed and the previous release + backup are retained.
-- [ ] The process is captured in `just deploy` / the systemd unit and `README.md`.
+- [x] The process is captured in `just deploy` / the systemd unit and `README.md`.

@@ -12,8 +12,7 @@
 # Schema: Alembic owns it (migrations/), so the app no longer creates tables at
 # start-up. ExecStartPre upgrades the schema before every start; the live
 # database is stamped at the baseline, so this is safe and a no-op when already
-# at head. Take a verified backup (`just backup`) before deploying a release
-# that adds a migration.
+# at head. `just deploy` takes a verified backup before restarting.
 
 [Unit]
 Description=Meals Application
@@ -26,6 +25,9 @@ Group=galeb
 WorkingDirectory=/home/galeb/meals
 EnvironmentFile=-/home/galeb/meals/.env
 Environment=PYTHONUNBUFFERED=1
+# Keep date.today() (planner, roast timings) on local time regardless of the host default.
+# Set after EnvironmentFile so .env cannot silently change it.
+Environment=TZ=Europe/London
 # Apply pending migrations before the app starts; a failure aborts the start.
 ExecStartPre=/home/galeb/.local/bin/uv run --frozen alembic upgrade head
 # --frozen: never re-resolve dependencies at start; sync happens in the deploy step.

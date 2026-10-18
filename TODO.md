@@ -30,17 +30,18 @@ Before finishing any item run `just` (lint + type_check + test). Coverage is enf
 
 ## Protect the live data (read this first)
 
-The production database is a single SQLite file living **inside the git checkout** on the
-Pi — `galeb@192.168.1.135:/home/galeb/meals/meals.db` — and it holds real data. Treat the
+The production database is a single SQLite file on the Pi, outside the checkout at
+`galeb@192.168.1.135:/home/galeb/meals-data/meals.db`, and it holds real data. Treat the
 following as prerequisites for Admin items 1–4: no migration, dependency upgrade, or deploy
 change should be attempted until they are done.
 
-**Status:** steps 1–4 are done. The live database now lives at
+**Status:** steps 1–5 are done. The live database now lives at
 `/home/galeb/meals-data/meals.db` (moved 2026-10-18), `/home/galeb/meals/.env` points the app
-and Alembic at it, and the live DB is stamped at the Alembic baseline. Step 5 is outstanding.
-Note that the existing backup is a point-in-time snapshot and will not include later edits to
-the app's data, so **refresh it (step 1) before every migration or deploy**; do not treat it as
-permanently done.
+and Alembic at it, and the live DB is stamped at the Alembic baseline. `just deploy` now takes
+a verified backup before every restart.
+Note that each backup is a point-in-time snapshot and will not include later edits to the
+app's data, so **take a fresh one before every migration or deploy** (`just deploy` does this
+automatically); do not treat an old backup as permanently done.
 
 - [x] **1. Back up using SQLite's backup API — not `cp`.** A backup has been taken and copies
   are held on the Pi and locally. For future refreshes, use `just backup` (see Admin item 4):
@@ -69,11 +70,12 @@ permanently done.
   was stamped at `8b8ea410224a (head)` on 2026-10-18 when it was moved (step 2), and
   `ExecStartPre=alembic upgrade head` is now enabled. The stamp had to happen first: the
   baseline would otherwise fail with `table ingredients already exists`.
-- [ ] **5. Make the deploy flow backup-then-migrate, and rollback a file swap.** `just deploy`
-  should take a verified backup before running migrations; the documented restore path is:
-  stop the service, restore the `.db` file (and remove any stale `-wal`/`-shm`), start the
-  service, verify. Keep the previous release on disk so a code rollback is a checkout and
-  restart, not a rebuild. See Admin item 12 for the side-by-side version of this.
+- [x] **5. Make the deploy flow backup-then-migrate, and rollback a file swap.** `just deploy`
+  takes a verified backup, then pulls, syncs, and restarts (the unit's `ExecStartPre` applies
+  migrations); on failure it prints the restore path. The documented rollback is: stop the
+  service, restore the `.db` file (and remove any stale `-wal`/`-shm`), start the service,
+  verify — with `git switch --detach <previous commit>` for the code half. See Admin item 12
+  for the side-by-side version.
 
 ## Priorities at a glance
 
@@ -291,18 +293,19 @@ rejected cases.
 
 ## Repo Admin
 
-### 1. A better way to deploy to the Pi — P1
+### 1. A better way to deploy to the Pi — P1 (done)
 
 Deployment already runs under systemd, and the unit is now **in the repository**. A hardened
 copy of `/etc/systemd/system/meals.service` is committed at `deploy/meals.service` (installed
 and verified on the Pi 2026-10-18): `ExecStart` is the production command
 `uv run --frozen fastapi run src/main.py`, `WorkingDirectory` is the checkout
 `/home/galeb/meals`, and it listens on `0.0.0.0:8000` (LAN clients at `192.168.1.x` reach it
-in the logs). What remains is not the unit but the *release process*: there is still no
-`just deploy`, migrations are not wired into start-up, and the deployment notes are not in
-`README.md`. (`just start` still runs `fastapi dev`, the auto-reload development server,
-which is for local work only.) The goal is to make the release one command that survives
-reboots and upgrades without data loss.
+in the logs). The release is now one command: `just deploy` on the Pi (via
+`scripts/deploy.sh`) takes a verified backup, fast-forwards the checkout, runs
+`uv sync --frozen`, reinstalls the unit if it changed, restarts the service (its
+`ExecStartPre=` applies migrations), and polls `/health`; the notes are in `README.md` and
+`deploy/README.md`. (`just start` remains the auto-reload development server.) The goal was
+to make a release one command that survives reboots and upgrades without data loss.
 
 For a single self-hosted service on one Pi, **systemd remains the least machinery and the
 recommended path** — it is already the chosen path, so this is consolidation rather than a
@@ -314,20 +317,22 @@ rewrite:
 - **The unit is version-controlled** (done). `deploy/meals.service` (with install notes in
   `deploy/README.md`) has explicit `User=`/`Group=`,
   `EnvironmentFile=-/home/galeb/meals/.env`, `Environment=PYTHONUNBUFFERED=1`,
-  `ExecStart=.../uv run --frozen fastapi run src/main.py`, `Restart=on-failure`,
-  `RestartSec=5`, `SyslogIdentifier=meals`, `NoNewPrivileges=true`, `PrivateTmp=true`.
-  Re-install after any change with `sudo cp deploy/meals.service /etc/systemd/system/` then
-  `daemon-reload` + `restart`. Do **not** rely on the working directory for the database path
-  (see Admin item 3).
+  `Environment=TZ=Europe/London`, `ExecStart=.../uv run --frozen fastapi run src/main.py`,
+  `Restart=on-failure`, `RestartSec=5`, `SyslogIdentifier=meals`, `NoNewPrivileges=true`,
+  `PrivateTmp=true`.
+  Re-install after any change with `just deploy` (it compares the unit and does
+  `daemon-reload` + `restart`), or manually with `sudo cp ...` and a restart. Do **not**
+  rely on the working directory for the database path (see Admin item 3).
 - Run migrations as an `ExecStartPre=` step (done: `alembic upgrade head`), and take a verified
-  backup before a restart as part of `just deploy` (Admin item 2 and **Protect the live
-  data**), so a restart upgrades the schema safely and a failed upgrade can be rolled back by
-  restoring the file.
-- Add a `just deploy` target (or `scripts/deploy.sh`) that performs the whole release:
-  fetch/rsync the new code, `uv sync --frozen`, run migrations, restart the service, then
-  poll `/health` and fail loudly if it doesn't come back. Keeping the previous release on
-  disk makes rollback a checkout + restart rather than a rebuild.
-- Logs go to journald automatically; document `journalctl -u meals -f` in `README.md`.
+  backup before a restart as part of `just deploy` (done), so a restart upgrades the schema
+  safely and a failed upgrade can be rolled back by restoring the file.
+- **`just deploy` is implemented** (`scripts/deploy.sh`): verified backup → `git pull
+  --ff-only` → `uv sync --frozen` → reinstall the unit if it changed → `systemctl restart`
+  (migrations run in `ExecStartPre`) → poll `/health`; a failure prints status, logs, and the
+  rollback steps and exits non-zero. It refuses a dirty tracked tree, requires `.env`, and
+  never rolls back automatically. `DRY_RUN=1 just deploy` shows the plan.
+- Logs go to journald automatically; `journalctl -u meals -f` is documented in `README.md`
+  and `deploy/README.md`. (Done.)
 
 A `Dockerfile` + compose file is a reasonable alternative if you want process isolation,
 but it adds image build/pull tooling to a job that is otherwise a `git pull` and a
@@ -337,7 +342,7 @@ procedure and a note that `scripts/plan_meal.py` expects a running server.
 Pi-specific details to get right at the same time:
 
 - Set `TZ` in the service environment so `date.today()` and the roast timings reflect local
-  time rather than UTC.
+  time rather than UTC. (Done: `Environment=TZ=Europe/London` in the unit.)
 - Confirm prebuilt wheels exist for the pinned dependencies on the Pi's architecture
   (`pydantic-core`, `greenlet`, and uvicorn's `uvloop`/`httptools`). Raspberry Pi OS 64-bit
   (`aarch64`) is well supported; 32-bit (`armv7l`) often is not — check before an upgrade.
