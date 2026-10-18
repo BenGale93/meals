@@ -21,9 +21,9 @@ EnvironmentFile=-/home/galeb/meals-next/.env
 Environment=PYTHONUNBUFFERED=1
 Environment=TZ=Europe/London
 # Apply pending migrations to the candidate copy before the app starts.
-ExecStartPre=/home/galeb/.local/bin/uv run --frozen alembic upgrade head
-# --frozen: never re-resolve dependencies at start; candidate.sh syncs before starting.
-ExecStart=/home/galeb/.local/bin/uv run --frozen fastapi run src/main.py --port 8001
+ExecStartPre=/home/galeb/.local/bin/uv run --frozen --no-dev alembic upgrade head
+# --frozen: never re-resolve dependencies at start; --no-dev: candidate.sh installs runtime deps only.
+ExecStart=/home/galeb/.local/bin/uv run --frozen --no-dev fastapi run src/main.py --port 8001
 Restart=on-failure
 RestartSec=5
 SyslogIdentifier=meals-next

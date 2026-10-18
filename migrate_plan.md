@@ -174,13 +174,13 @@ just candidate            # origin/master; `just candidate start <ref>` for anot
 That stops any previous candidate, creates (or refreshes) the `/home/galeb/meals-next` git
 worktree, copies the live DB with SQLite's online backup API into
 `<data-dir>/candidate/meals.db`, writes a candidate `.env` that points **only** at that copy,
-runs `uv sync --frozen`, applies migrations to the copy, installs
-`deploy/meals-next.service` and waits for its `/health`. It refuses to start unless the
+runs `uv sync --frozen --no-dev` (runtime dependencies only), applies migrations to the copy,
+installs `deploy/meals-next.service` and waits for its `/health`. It refuses to start unless the
 candidate `DATABASE_URL` resolves to the copy, so the live file still has exactly one writer.
 
 Manual equivalent: `git -C /home/galeb/meals worktree add /home/galeb/meals-next <release-ref>`,
-`cd /home/galeb/meals-next && uv sync --frozen`, copy the database, and point the candidate
-`.env` at the copy.
+`cd /home/galeb/meals-next && uv sync --frozen --no-dev`, copy the database, and point the
+candidate `.env` at the copy.
 
 ### Step 3 — apply migrations to the candidate copy
 

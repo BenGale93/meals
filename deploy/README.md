@@ -81,7 +81,8 @@ just candidate clean           # stop and remove the checkout, DB copy and unit
 `just candidate` stops any previous candidate, creates or refreshes `/home/galeb/meals-next`
 (a git worktree), copies the live database with the online backup API into
 `<data dir>/candidate/meals.db`, writes a candidate `.env` pointing at that copy, runs
-`uv sync --frozen`, applies migrations to the copy, installs `deploy/meals-next.service`
+`uv sync --frozen --no-dev` (runtime dependencies only — the candidate does not need the
+lint/test tooling), applies migrations to the copy, installs `deploy/meals-next.service`
 (port `8001`, not enabled at boot) and waits for its `/health`. It refuses to start if the
 candidate `DATABASE_URL` resolves to the live file, so exactly one process writes each SQLite
 file.

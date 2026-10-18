@@ -130,8 +130,8 @@ start() {
     fi
     umask 022
 
-    printf '\n==> syncing candidate dependencies\n'
-    ( cd "$CANDIDATE_DIR" && uv sync --frozen )
+    printf '\n==> syncing candidate dependencies (runtime only, no dev tools)\n'
+    ( cd "$CANDIDATE_DIR" && uv sync --frozen --no-dev )
 
     local resolved
     resolved="$(db_path "$CANDIDATE_DIR")" || die "could not resolve the candidate DATABASE_URL"
@@ -140,7 +140,7 @@ start() {
         || die "candidate DATABASE_URL ($resolved) is not the database copy ($CANDIDATE_DB)"
 
     printf '\n==> migrating the database copy\n'
-    ( cd "$CANDIDATE_DIR" && uv run --frozen --env-file .env alembic upgrade head )
+    ( cd "$CANDIDATE_DIR" && uv run --frozen --no-dev --env-file .env alembic upgrade head )
 
     if ! cmp -s "$unit_src" "/etc/systemd/system/$CANDIDATE_SERVICE.service"; then
         printf '\n==> installing %s.service\n' "$CANDIDATE_SERVICE"
