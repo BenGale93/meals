@@ -10,3 +10,15 @@ A meal planning view for planning the weeks meals, seeing what you've eaten
 recently/not so recently.
 
 A Roast timer view, for planning the timings of roast dinners.
+
+## Development
+
+```bash
+just migrate      # create/update the schema with Alembic
+just start        # dev server on http://127.0.0.1:8000
+just              # lint, type-check and test (100% coverage enforced)
+```
+
+The app does not create tables itself; Alembic owns the schema (`migrations/`). After
+changing `src/meals/database/models.py`, generate a migration with
+`uv run alembic revision --autogenerate -m "describe the change"`.

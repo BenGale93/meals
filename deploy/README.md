@@ -24,9 +24,28 @@ location is explicit rather than derived from the working directory:
 DATABASE_URL=sqlite+aiosqlite:////home/galeb/meals-data/meals.db
 ```
 
-Until the app reads `DATABASE_URL` from the environment (TODO → Admin item 3), the default
-relative `sqlite+aiosqlite:///meals.db` is still used, so the database remains at
-`/home/galeb/meals/meals.db`.
+The app reads `DATABASE_URL` from the environment. Until the database is moved
+(`../migrate_plan.md` section 4), the default relative `sqlite+aiosqlite:///meals.db` is
+used, so the database remains at `/home/galeb/meals/meals.db`.
+
+## Migrations
+
+The schema is owned by Alembic (`migrations/`); the app no longer creates tables at
+start-up. Apply pending migrations before starting a new release:
+
+```bash
+just migrate                 # uv run alembic upgrade head, honouring .env
+```
+
+The existing database predates Alembic, so it is **stamped** once instead of upgraded
+(`uv run alembic stamp head`). The baseline revision then counts as already applied and is
+never replayed; running it against the unstamped database fails with
+`table ingredients already exists`. This is safe to do as soon as this release is deployed
+(it only adds the `alembic_version` table) and is also folded into the first cutover in
+[`../migrate_plan.md`](../migrate_plan.md) section 4.
+
+Once the live database is stamped, enable the `ExecStartPre=` line documented in
+`meals.service` so a restart applies pending migrations before the app starts.
 
 ## Operations
 

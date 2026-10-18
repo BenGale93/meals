@@ -33,12 +33,3 @@ async def get_db() -> AsyncGenerator[AsyncSession, t.Any]:  # pragma: no cover #
     """
     async with async_session() as session, session.begin():
         yield session
-
-
-async def init_models() -> None:
-    """Create tables if they don't already exist.
-
-    In a real-life example we would use Alembic to manage migrations.
-    """
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)

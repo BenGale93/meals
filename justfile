@@ -21,6 +21,12 @@ alias l := lint
 @start:
     uv run fastapi dev src/main.py
 
+alias m := migrate
+
+# Apply pending schema migrations to the configured database (honours .env).
+@migrate:
+    if [ -f .env ]; then uv run --env-file .env alembic upgrade head; else uv run alembic upgrade head; fi
+
 alias b := backup
 
 @backup *args:
