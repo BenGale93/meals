@@ -317,7 +317,7 @@ class PlanRepository:
                 func.count(StoredPlannedDay.pk),
                 func.max(StoredPlannedDay.day),
             )
-            .filter_by(user_pk=user_pk)
+            .where(StoredRecipe.user_pk == user_pk)
             .join(
                 StoredPlannedDay,
                 (StoredPlannedDay.recipe_pk == StoredRecipe.pk) & (StoredPlannedDay.day <= date.today()),

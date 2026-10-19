@@ -480,7 +480,28 @@ not a valid stand-in for the production schema.
   Tailwind). For an internal Tailscale app the supply-chain/reproducibility risk is low,
   but pinning or vendoring avoids surprise breakage when the CDN changes.
 
-### 10. Refresh dependencies — P2
+### 10. Refresh dependencies — P2 (done)
+
+**Done:** ran `uv lock --upgrade` / `uv sync` and raised the lower bounds in
+`pyproject.toml` to the proven versions. The upgrade surfaced five pieces of fallout, all
+fixed:
+
+- **htmy 0.8 → 0.13**: `html.<tag>` is now a `Tag`/`TagWithProps` *instance*, not a type, so
+  every `-> html.div`-style return annotation became `-> ComponentType`; `html.meta.charset()`/
+  `html.meta.viewport()` moved to `html.Meta.charset()`/`html.Meta.viewport()`; a `Tag` is no
+  longer a component, so `_common_recipe`'s list is `list[ComponentType]`. Empty `<script>`
+  tags also render on one line now, so five web snapshots were updated.
+- **SQLAlchemy 2.1**: `filter_by(user_pk=...)` against a joined `select` now raises
+  `AmbiguousColumnError`, so `PlanRepository.summarise` uses `.where(StoredRecipe.user_pk == ...)`.
+- **SQLAlchemy 2.1 moved `greenlet` into the `asyncio` extra**: the app now depends on
+  `sqlalchemy[asyncio]` (bare `sqlalchemy` no longer installs the async engine's runtime).
+- **FastAPI 0.146 treats an empty form value as "missing"**: the string `Form()` fields a user
+  can leave blank (`name`, `instructions`, `finish_time`, `steps`, `meal`) now default to `""`,
+  and those parameters moved after the injected dependencies so the defaults stay last.
+- **Ruff 0.17**: `CPY001` (copyright notice) is ignored; `PLR0917` was added to the existing
+  `update_recipe` noqa; `tests/test_api.py` now uses `import datetime as dt` (ICN001).
+
+The pydantic-V1 warning noted below is gone (`import meals.app` is clean under `-W error`).
 
 `pyproject.toml` uses permissive lower bounds and `uv.lock` pins the actual versions, so
 the lockfile is the thing that has drifted. Snapshot comparison against PyPI taken in

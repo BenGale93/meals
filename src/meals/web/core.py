@@ -4,7 +4,7 @@ import typing as t
 
 from fastapi import APIRouter
 from fasthx.htmy import HTMY
-from htmy import Component, ComponentType, SafeStr, Tag, html
+from htmy import Component, ComponentType, SafeStr, html
 
 if t.TYPE_CHECKING:
     from pydantic_core import ErrorDetails
@@ -78,7 +78,7 @@ BURGER_SVG = SafeStr("""
 """)
 
 
-def nav_bar(pages: t.Sequence[tuple[str, str]]) -> html.div:
+def nav_bar(pages: t.Sequence[tuple[str, str]]) -> ComponentType:
     """Navigation bar with links for mobile and desktop."""
     mobile_links = [
         html.a(
@@ -125,8 +125,8 @@ def page(content: ComponentType) -> Component:
             html.head(
                 # Some metadata
                 html.title("Meal Manager"),
-                html.meta.charset(),
-                html.meta.viewport(),
+                html.Meta.charset(),
+                html.Meta.viewport(),
                 # TailwindCSS
                 html.script(src="https://cdn.tailwindcss.com"),
                 # HTMX
@@ -162,13 +162,13 @@ def page(content: ComponentType) -> Component:
     )
 
 
-def ingredient_div(ingredient: IngredientResponse) -> html.div:
+def ingredient_div(ingredient: IngredientResponse) -> ComponentType:
     """A Div representing an ingredient."""
     return html.div(f"{ingredient.name} {ingredient.quantity} {ingredient.unit}")
 
 
-def _common_recipe(recipe: RecipeResponse) -> tuple[list[Tag], dict[str, t.Any]]:
-    core_components: list[Tag] = [
+def _common_recipe(recipe: RecipeResponse) -> tuple[list[ComponentType], dict[str, t.Any]]:
+    core_components: list[ComponentType] = [
         html.h2(recipe.name, class_="text-2xl font-bold text-green-700 mb-3"),
         html.ul(*[html.li(ingredient_div(i)) for i in recipe.ingredients], class_="list-disc ml-5 mb-4"),
         html.p(recipe.instructions, style="white-space:pre-line;", class_="pb-3"),
@@ -180,13 +180,13 @@ def _common_recipe(recipe: RecipeResponse) -> tuple[list[Tag], dict[str, t.Any]]
     return core_components, properties
 
 
-def recipe_section(recipe: RecipeResponse) -> html.section:
+def recipe_section(recipe: RecipeResponse) -> ComponentType:
     """A Section representing a recipe."""
     core_components, properties = _common_recipe(recipe)
     return html.section(*core_components, **properties)
 
 
-def editable_recipe_section(recipe: RecipeResponse) -> html.section:
+def editable_recipe_section(recipe: RecipeResponse) -> ComponentType:
     """A Section representing a editable recipe."""
     core_components, properties = _common_recipe(recipe)
     core_components.append(

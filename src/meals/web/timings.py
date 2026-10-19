@@ -4,7 +4,7 @@ import typing as t
 from datetime import time
 
 from fastapi import Form
-from htmy import Component, html
+from htmy import Component, ComponentType, html
 
 from meals.auth import CurrentUser  # noqa: TC001
 from meals.schemas import (
@@ -44,7 +44,7 @@ function timingApp(initial) {
 """)
 
 
-def finish_time_div(finish_time: time) -> html.div:
+def finish_time_div(finish_time: time) -> ComponentType:
     """Input for the timings finish time."""
     return html.div(
         html.label("Target Finish Time", class_="block font-semibold mb-1"),
@@ -53,7 +53,7 @@ def finish_time_div(finish_time: time) -> html.div:
     )
 
 
-def description_input() -> html.input_:
+def description_input() -> ComponentType:
     """Step description input."""
     return html.input_(
         type="text",
@@ -64,7 +64,7 @@ def description_input() -> html.input_:
     )
 
 
-def offset_input() -> html.input_:
+def offset_input() -> ComponentType:
     """Step offset input."""
     return html.input_(
         **{"x-model.number": "step.offset"},
@@ -74,7 +74,7 @@ def offset_input() -> html.input_:
     )
 
 
-def computed_time() -> html.div:
+def computed_time() -> ComponentType:
     """The time compute using the finish time and offset."""
     return html.div(
         html.template(html.span(x_text="calculateTimeString(step.offset)"), x_if="finishTime"),
@@ -82,7 +82,7 @@ def computed_time() -> html.div:
     )
 
 
-def step_delete() -> html.button:
+def step_delete() -> ComponentType:
     """Button to delete a step."""
     return html.button(
         "x",
@@ -95,7 +95,7 @@ def step_delete() -> html.button:
     )
 
 
-def steps_div() -> html.div:
+def steps_div() -> ComponentType:
     """Timings step div."""
     return html.div(
         html.template(
@@ -112,7 +112,7 @@ def steps_div() -> html.div:
     )
 
 
-def save_timing() -> html.div:
+def save_timing() -> ComponentType:
     """Save timing button."""
     return html.div(
         html.button(
@@ -129,7 +129,7 @@ def save_timing() -> html.div:
     )
 
 
-def add_step(position: t.Literal["Above", "Below"]) -> html.div:
+def add_step(position: t.Literal["Above", "Below"]) -> ComponentType:
     """Add timing step button.
 
     Args:
@@ -148,7 +148,7 @@ def add_step(position: t.Literal["Above", "Below"]) -> html.div:
     )
 
 
-def timings_div(timings: TimingsResponse) -> html.div:
+def timings_div(timings: TimingsResponse) -> ComponentType:
     """Timing editor component."""
     timing_json = timings.model_dump_json()
     return html.div(
@@ -164,14 +164,14 @@ def timings_div(timings: TimingsResponse) -> html.div:
     )
 
 
-def update_timings_div(_: t.Any) -> html.div:
+def update_timings_div(_: t.Any) -> ComponentType:
     """Component returned when an attempt to update the timings succeeds."""
     return html.div(
         "Timing saved successfully", class_="p-4 bg-green-50 border border-green-200 text-green-800 rounded-lg mb-4"
     )
 
 
-def failed_to_update_timings_div(error: Exception) -> html.div:  # noqa: ARG001
+def failed_to_update_timings_div(error: Exception) -> ComponentType:  # noqa: ARG001
     """Component returned when an attempt to update the timings fails."""
     return html.div("Error saving timings", class_="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg mb-4")
 
@@ -220,10 +220,10 @@ async def get_timings(service: TimingsServiceDep, user: CurrentUser) -> TimingsR
 @router.patch("/timings")
 @htmy_renderer.page(update_timings_div, error_component_selector=failed_to_update_timings_div)
 async def update_timings(
-    finish_time: t.Annotated[str, Form()],
-    steps: t.Annotated[str, Form()],
     service: TimingsServiceDep,
     user: CurrentUser,
+    finish_time: t.Annotated[str, Form()] = "",
+    steps: t.Annotated[str, Form()] = "",
 ) -> None:
     """Get the timings as HTML."""
     timings_data = TimingsCreate.model_validate(

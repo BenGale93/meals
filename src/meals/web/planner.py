@@ -4,7 +4,7 @@ import typing as t
 from datetime import date  # noqa: TC003
 
 from fastapi import Form, Response
-from htmy import Component, html
+from htmy import Component, ComponentType, html
 
 from meals.auth import CurrentUser  # noqa: TC001
 from meals.schemas import PlannedDays, RecipeSummary  # noqa: TC001
@@ -46,7 +46,7 @@ document.body.addEventListener('show-error', function(evt) {
 """)
 
 
-def meal_input(meal_for_day: str, i: int) -> html.input_:
+def meal_input(meal_for_day: str, i: int) -> ComponentType:
     """Takes the name of the meal for the given day."""
     return html.input_(
         list=f"meal-list-{i}",
@@ -59,7 +59,7 @@ def meal_input(meal_for_day: str, i: int) -> html.input_:
     )
 
 
-def day_plan(meal_for_day: str, i: int) -> html.div:
+def day_plan(meal_for_day: str, i: int) -> ComponentType:
     """Plan for a given day."""
     return html.div(
         meal_input(meal_for_day, i),
@@ -76,7 +76,7 @@ def day_plan(meal_for_day: str, i: int) -> html.div:
     )
 
 
-def planned_week_div(current_plan: PlannedDays) -> html.table:
+def planned_week_div(current_plan: PlannedDays) -> ComponentType:
     """The planned week table."""
     table_rows = []
     for i, planned_day in enumerate(current_plan.root):
@@ -107,12 +107,12 @@ def planned_week_div(current_plan: PlannedDays) -> html.table:
     )
 
 
-def meal_options(meal_names: list[str]) -> html.datalist:
+def meal_options(meal_names: list[str]) -> ComponentType:
     """Meal options for the drop down."""
     return html.datalist(*[html.option(value=m) for m in meal_names])
 
 
-def summary_table(summaries: list[RecipeSummary]) -> html.section:
+def summary_table(summaries: list[RecipeSummary]) -> ComponentType:
     """The summary table for the meals."""
     table_rows = []
     for summary in summaries:
@@ -197,10 +197,10 @@ async def meals_like(meal: str, service: RecipeServiceDep, user: CurrentUser) ->
 @router.post("/planned_day", response_model=None)
 async def update_planned_day(
     response: Response,
-    meal: t.Annotated[str, Form()],
     day: t.Annotated[date, Form()],
     service: PlanServiceDep,
     user: CurrentUser,
+    meal: t.Annotated[str, Form()] = "",
 ) -> None:
     """Return meals like the string provided."""
     planned_day = await service.plan_by_meal_name(meal, day, user.pk)

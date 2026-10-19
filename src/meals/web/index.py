@@ -21,14 +21,14 @@ from meals.web.core import (
 )
 
 
-def recipes_div(recipes: Recipes) -> html.main:
+def recipes_div(recipes: Recipes) -> ComponentType:
     """A Div representing all recipes."""
     return html.main(
         *[editable_recipe_section(recipe) for recipe in recipes], class_="max-w-3xl mx-auto mt-10 p-4 space-y-12"
     )
 
 
-def recipe_name(recipe: RecipeResponse) -> html.a:
+def recipe_name(recipe: RecipeResponse) -> ComponentType:
     """Link to a full recipe."""
     return html.a(
         recipe.name,
@@ -37,7 +37,7 @@ def recipe_name(recipe: RecipeResponse) -> html.a:
     )
 
 
-def recipe_names(recipes: Recipes) -> html.section:
+def recipe_names(recipes: Recipes) -> ComponentType:
     """Links to the full recipe."""
     return html.section(
         html.h2("Contents", class_="text-xl font-semibold mb-3"),
@@ -46,7 +46,7 @@ def recipe_names(recipes: Recipes) -> html.section:
     )
 
 
-def update_recipe_error(error: Exception) -> html.div:
+def update_recipe_error(error: Exception) -> ComponentType:
     """Component returned when an error occurs updating a recipe."""
     messages: list[ComponentType]
     if isinstance(error, ValidationError):
@@ -60,7 +60,7 @@ def update_recipe_error(error: Exception) -> html.div:
     return html.div(*messages, class_="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg mb-4")
 
 
-def edit_recipe_name(current_name: str) -> html.div:
+def edit_recipe_name(current_name: str) -> ComponentType:
     """Input for setting the recipe name."""
     return html.div(
         html.label("Recipe Name", class_="block font-semibold mb-1", **{"for": "name"}),
@@ -75,7 +75,7 @@ def edit_recipe_name(current_name: str) -> html.div:
     )
 
 
-def ingredient_details(ingredient: IngredientResponse) -> html.div:
+def ingredient_details(ingredient: IngredientResponse) -> ComponentType:
     """Details of the ingredient."""
     return html.div(
         html.input_(
@@ -100,7 +100,7 @@ def ingredient_details(ingredient: IngredientResponse) -> html.div:
     )
 
 
-def add_ingredient() -> html.button:
+def add_ingredient() -> ComponentType:
     """Button to add another ingredient."""
     return html.button(
         "+ Add Ingredient",
@@ -109,7 +109,7 @@ def add_ingredient() -> html.button:
     )
 
 
-def edit_instructions_input(current_instructions: str) -> html.div:
+def edit_instructions_input(current_instructions: str) -> ComponentType:
     """Input for specifying the recipe's instructions."""
     return html.div(
         html.label("Instructions", class_="block font-semibold mb-1", **{"for": "instructions"}),
@@ -124,7 +124,7 @@ def edit_instructions_input(current_instructions: str) -> html.div:
     )
 
 
-def edit_recipe_div(recipe: RecipeResponse) -> html.form:
+def edit_recipe_div(recipe: RecipeResponse) -> ComponentType:
     """Component for editing recipes."""
     ingredient_data = [str(i) for i in recipe.ingredients]
     return html.form(
@@ -197,13 +197,13 @@ async def recipe_list(service: RecipeServiceDep, user: CurrentUser) -> Recipes:
 
 @router.post("/update_recipe/{pk}", response_model=None)
 @htmy_renderer.page(editable_recipe_section, error_component_selector=update_recipe_error)
-async def update_recipe(  # noqa: PLR0913
+async def update_recipe(  # noqa: PLR0913, PLR0917
     pk: int,
-    name: t.Annotated[str, Form()],
-    instructions: t.Annotated[str, Form()],
     service: RecipeServiceDep,
-    ingredients: t.Annotated[list[str], Form()],
     user: CurrentUser,
+    ingredients: t.Annotated[list[str], Form()],
+    name: t.Annotated[str, Form()] = "",
+    instructions: t.Annotated[str, Form()] = "",
 ) -> RecipeResponse:
     """Create a new recipe using a form."""
     recipe_data = UpdateRecipeRequest.model_validate(

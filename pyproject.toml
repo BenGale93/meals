@@ -5,15 +5,15 @@ version = "0.1.0"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-  "aiosqlite>=0.21.0",
+  "aiosqlite>=0.22.1",
   "alembic>=1.20.0",
-  "fastapi[standard]>=0.119.0",
-  "fasthx[htmy]>=3.0.1",
+  "fastapi[standard]>=0.146.0",
+  "fasthx[htmy]>=3.2.2",
   "httpx>=0.28.1",
-  "pydantic>=2.12.3",
-  "pydantic-yaml>=1.6.0",
-  "python-multipart>=0.0.20",
-  "sqlalchemy>=2.0.44",
+  "pydantic>=2.14.1",
+  "pydantic-yaml>=1.7.0",
+  "python-multipart>=0.0.32",
+  "sqlalchemy[asyncio]>=2.1.5",
 ]
 license = "MIT"
 authors = [{ name = "Benjamin Askew-Gale" }]
@@ -24,14 +24,14 @@ dev = [
   { include-group = "test" },
   { include-group = "typing" },
 ]
-lint = ["import-linter>=2.5.2", "ruff>=0.14.1"]
+lint = ["import-linter>=2.15", "ruff>=0.17.1"]
 test = [
-  "pytest>=8.4.1",
-  "pytest-randomly>=4.0.1",
-  "pytest-cov>=7.0.0",
-  "pytest-asyncio>=1.2.0",
-  "inline-snapshot>=0.31.0",
-  "time-machine>=3.1.0",
+  "pytest>=9.1.1",
+  "pytest-randomly>=5.0.0",
+  "pytest-cov>=7.1.0",
+  "pytest-asyncio>=1.4.0",
+  "inline-snapshot>=0.36.1",
+  "time-machine>=3.5.1",
 ]
 typing = ["pyrefly>=1.4.0"]
 typing-test = [{ include-group = "test" }, { include-group = "typing" }]
@@ -51,7 +51,7 @@ docstring-code-format = true
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["COM812", "ISC001", "ANN401", "D101", "FIX002", "TD", "DTZ"]
+ignore = ["COM812", "ISC001", "ANN401", "D101", "FIX002", "TD", "DTZ", "CPY001"]
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore all directories named `tests`.

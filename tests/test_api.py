@@ -1,5 +1,5 @@
 import base64
-import datetime
+import datetime as dt
 from typing import TYPE_CHECKING
 
 import time_machine
@@ -463,7 +463,7 @@ class TestTimingsAPI:
 
         assert pk is not None
 
-        dummy_timings.finish_time = datetime.time(12, 0, 0)
+        dummy_timings.finish_time = dt.time(12, 0, 0)
         timings_json = dummy_timings.model_dump()
         response = await client.patch("/api/v1/timings", json=timings_json)
         response_json = response.json()
@@ -502,7 +502,7 @@ class TestPlannedDayAPI:
         plan = PlannedDayResponse.model_validate(response.json())
 
         assert plan == snap(
-            PlannedDayResponse(pk=1, day=datetime.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise"))
+            PlannedDayResponse(pk=1, day=dt.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise"))
         )
 
     async def test_double_update(self, client: AsyncClient, take_away, carrots_recipe):
@@ -524,7 +524,7 @@ class TestPlannedDayAPI:
         plan = PlannedDayResponse.model_validate(response.json())
 
         assert plan == snap(
-            PlannedDayResponse(pk=1, day=datetime.date(2025, 1, 1), recipe=PlannedRecipe(pk=2, name="Take Away"))
+            PlannedDayResponse(pk=1, day=dt.date(2025, 1, 1), recipe=PlannedRecipe(pk=2, name="Take Away"))
         )
 
         recipe = recipe_response.json()
@@ -542,7 +542,7 @@ class TestPlannedDayAPI:
         plan = PlannedDayResponse.model_validate(response.json())
 
         assert plan == snap(
-            PlannedDayResponse(pk=1, day=datetime.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise"))
+            PlannedDayResponse(pk=1, day=dt.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise"))
         )
 
     async def test_get_range(self, client: AsyncClient, carrots_recipe):
@@ -551,7 +551,7 @@ class TestPlannedDayAPI:
         recipe = PlannedRecipe.model_validate(recipe_response.json())
 
         for day in ["2025-01-01", "2025-02-01", "2025-03-01"]:
-            planned_day = PlannedDay(day=datetime.date.fromisoformat(day), recipe=recipe)
+            planned_day = PlannedDay(day=dt.date.fromisoformat(day), recipe=recipe)
             response = await client.post("/api/v1/planned_day", json=planned_day.model_dump())
             response.raise_for_status()
 
@@ -564,16 +564,12 @@ class TestPlannedDayAPI:
 
         assert plan == snap(
             [
-                PlannedDayResponse(
-                    pk=1, day=datetime.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise")
-                ),
-                PlannedDayResponse(
-                    pk=2, day=datetime.date(2025, 2, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise")
-                ),
+                PlannedDayResponse(pk=1, day=dt.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise")),
+                PlannedDayResponse(pk=2, day=dt.date(2025, 2, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise")),
             ]
         )
 
-    @time_machine.travel(datetime.date(2025, 1, 1))
+    @time_machine.travel(dt.date(2025, 1, 1))
     async def test_summarise(self, client: AsyncClient, take_away, carrots_recipe):
         recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
         response = await client.post("/api/v1/recipes", json=take_away.model_dump())
@@ -582,7 +578,7 @@ class TestPlannedDayAPI:
         recipe = PlannedRecipe.model_validate(recipe_response.json())
 
         # Plan a meal for today and another for a future date: only today's meal counts.
-        for day in [datetime.date(2025, 1, 1), datetime.date(2025, 1, 8)]:
+        for day in [dt.date(2025, 1, 1), dt.date(2025, 1, 8)]:
             planned_day = PlannedDay(day=day, recipe=recipe)
             response = await client.post("/api/v1/planned_day", json=planned_day.model_dump())
             response.raise_for_status()
@@ -593,7 +589,7 @@ class TestPlannedDayAPI:
 
         assert summary == snap(
             [
-                RecipeSummary(name="Carrot Surprise", count=1, last_eaten=datetime.date(2025, 1, 1)),
+                RecipeSummary(name="Carrot Surprise", count=1, last_eaten=dt.date(2025, 1, 1)),
                 RecipeSummary(name="Take Away", count=0, last_eaten=None),
             ]
         )

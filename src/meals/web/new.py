@@ -21,7 +21,7 @@ from meals.web.core import (
 )
 
 
-def new_recipe_error(error: Exception) -> html.div:
+def new_recipe_error(error: Exception) -> ComponentType:
     """Component returned when an error occurs adding a new recipe."""
     messages: list[ComponentType]
     if isinstance(error, RecipeAlreadyExistsError):
@@ -41,7 +41,7 @@ def new_recipe_error(error: Exception) -> html.div:
 PAGE_NAME = "New Recipe"
 
 
-def recipe_name() -> html.div:
+def recipe_name() -> ComponentType:
     """Input for setting the recipe name."""
     return html.div(
         html.label("Recipe Name", class_="block font-semibold mb-1", **{"for": "name"}),
@@ -55,7 +55,7 @@ def recipe_name() -> html.div:
     )
 
 
-def ingredient_details() -> html.div:
+def ingredient_details() -> ComponentType:
     """Details of the ingredient."""
     return html.div(
         html.input_(
@@ -80,7 +80,7 @@ def ingredient_details() -> html.div:
     )
 
 
-def add_ingredient() -> html.button:
+def add_ingredient() -> ComponentType:
     """Button to add another ingredient."""
     return html.button(
         "+ Add Ingredient",
@@ -89,7 +89,7 @@ def add_ingredient() -> html.button:
     )
 
 
-def instructions_input() -> html.div:
+def instructions_input() -> ComponentType:
     """Input for specifying the recipe's instructions."""
     return html.div(
         html.label("Instructions", class_="block font-semibold mb-1", **{"for": "instructions"}),
@@ -103,7 +103,7 @@ def instructions_input() -> html.div:
     )
 
 
-def save_recipe() -> html.div:
+def save_recipe() -> ComponentType:
     """Button for saving the recipe."""
     return html.div(
         html.button(
@@ -115,7 +115,7 @@ def save_recipe() -> html.div:
     )
 
 
-def new_recipe_form() -> html.form:
+def new_recipe_form() -> ComponentType:
     """Form for submitting a new recipe."""
     return html.form(
         recipe_name(),
@@ -159,11 +159,11 @@ async def new(_: CurrentUser) -> None:
 @router.post("/new_recipe", response_model=None)
 @htmy_renderer.page(recipe_section, error_component_selector=new_recipe_error)
 async def new_recipe(
-    name: t.Annotated[str, Form()],
-    instructions: t.Annotated[str, Form()],
     service: RecipeServiceDep,
-    ingredients: t.Annotated[list[str], Form(default_factory=list)],
     user: CurrentUser,
+    ingredients: t.Annotated[list[str], Form(default_factory=list)],
+    name: t.Annotated[str, Form()] = "",
+    instructions: t.Annotated[str, Form()] = "",
 ) -> RecipeResponse:
     """Create a new recipe using a form."""
     recipe_data = CreateRecipeRequest.model_validate(
