@@ -23,6 +23,10 @@ This app is self-hosted by a **single user** on a **Raspberry Pi**, reachable on
 Priorities: **P1** = affects the single user today; **P2** = latent, quality, or
 operational hygiene; **P3** = optional / nice to have.
 
+**Bugs and architecture outrank features.** Fix what is broken and pay down structural
+debt before adding capability, so a Bug or Arch item outranks any Feature of the same
+nominal priority; pick up Features only once no Bug/Arch item at that level remains.
+
 Before finishing any item run `just` (lint + type_check + test). Coverage is enforced at
 100% branch coverage, so every new branch needs a test. Follow the existing test layout
 (`tests/test_api.py`, `tests/test_web.py`, `tests/conftest.py`) and update
@@ -695,6 +699,9 @@ the timings Alpine/JS behaviour, which is currently untested.
 ---
 
 ## Features
+
+New capability, taken up **after** the remaining Bugs and Arch items at the same priority
+(see the note under "Priorities" above).
 
 ### 1. Recipe labels and planner filtering — P1
 
