@@ -685,7 +685,17 @@ this copy-paste. Introduce a small service/use-case layer (or at least shared he
 both `meals.api` and `meals.web` call, so validation and business rules live in one place
 and the HTTP layers stay thin. This is the root-cause fix behind several bugs above.
 
-### 2. Response models silently rely on eager-loaded relationships — P2
+### 2. Response models silently rely on eager-loaded relationships — P2 (done)
+
+**Fixed:** the load options now live in `RECIPE_LOAD_OPTIONS` and `PLANNED_DAY_LOAD_OPTIONS`
+in `src/meals/database/repository.py`, and every query that can return an object a response
+model serialises uses them (`RecipeRepository.get`/`get_by_name`/`get_all`/`is_like`,
+`PlanRepository.update`/`get_range`). The rule — every response relationship must be
+eager-loaded, and new ones must be added to the matching constant — is documented beside
+the shared load options in `src/meals/database/repository.py` and in `AGENTS.md`.
+`tests/test_database.py` adds a test that detaches the ORM objects before Pydantic
+validation, so a missing load fails as `DetachedInstanceError` rather than
+`MissingGreenlet`; the existing API/web tests already hit each endpoint with related data.
 
 Repositories return ORM objects that Pydantic `from_attributes` models serialize, so
 correctness depends on `lazy="selectin"`/`joinedload` being set everywhere the model

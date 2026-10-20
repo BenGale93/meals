@@ -27,6 +27,16 @@ from meals.exceptions import (
 if t.TYPE_CHECKING:
     from meals.schemas import CreateRecipeRequest, CreateUserRequest, PlannedDay, TimingsCreate, UpdateRecipeRequest
 
+# Response models are serialised from these ORM objects after the query, so every
+# relationship they touch must already be loaded: an implicit async lazy load raises
+# MissingGreenlet (a 500). Keep these tuples complete and pass them to every query that
+# can return an object a response model will serialise.
+#
+# `RecipeResponse` serialises recipe.ingredients and each row's ingredient.
+RECIPE_LOAD_OPTIONS = (joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient),)
+# `PlannedDayResponse` serialises planned.recipe.
+PLANNED_DAY_LOAD_OPTIONS = (joinedload(StoredPlannedDay.recipe),)
+
 
 class UserRepository:
     def __init__(self, session: AsyncSession) -> None:
@@ -102,18 +112,13 @@ class RecipeRepository:
 
     async def get(self, pk: int, user_pk: int) -> StoredRecipe | None:
         """Get the recipe by the primary key."""
-        stmt = select(StoredRecipe).filter_by(pk=pk, user_pk=user_pk)
+        stmt = select(StoredRecipe).filter_by(pk=pk, user_pk=user_pk).options(*RECIPE_LOAD_OPTIONS)
         stmt_result = await self.session.scalars(stmt)
         return stmt_result.first()
 
     async def get_by_name(self, name: str, user_pk: int) -> StoredRecipe | None:
         """Gets the recipe with a given name."""
-        stmt = (
-            select(StoredRecipe)
-            .filter_by(name=name, user_pk=user_pk)
-            .limit(1)
-            .options(joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient))
-        )
+        stmt = select(StoredRecipe).filter_by(name=name, user_pk=user_pk).limit(1).options(*RECIPE_LOAD_OPTIONS)
         stmt_result = await self.session.scalars(stmt)
         recipe = stmt_result.first()
 
@@ -129,12 +134,7 @@ class RecipeRepository:
             user_pk: The primary key of the user the recipe belong to.
             has_ingredients: Whether to only get recipe that have some ingredients.
         """
-        stmt = (
-            select(StoredRecipe)
-            .filter_by(user_pk=user_pk)
-            .options(joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient))
-            .order_by(StoredRecipe.name)
-        )
+        stmt = select(StoredRecipe).filter_by(user_pk=user_pk).options(*RECIPE_LOAD_OPTIONS).order_by(StoredRecipe.name)
         stmt_result = await self.session.scalars(stmt)
 
         recipes = list(stmt_result.unique().fetchall())
@@ -198,7 +198,7 @@ class RecipeRepository:
         stmt = (
             select(StoredRecipe)
             .filter(StoredRecipe.name.ilike(f"%{snippet}%"), StoredRecipe.user_pk == user_pk)
-            .options(joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient))
+            .options(*RECIPE_LOAD_OPTIONS)
         )
         stmt_result = await self.session.scalars(stmt)
 
@@ -291,11 +291,7 @@ class PlanRepository:
 
         await self.session.flush()
 
-        stmt = (
-            select(StoredPlannedDay)
-            .filter_by(pk=planned.pk, user_pk=user_pk)
-            .options(joinedload(StoredPlannedDay.recipe))
-        )
+        stmt = select(StoredPlannedDay).filter_by(pk=planned.pk, user_pk=user_pk).options(*PLANNED_DAY_LOAD_OPTIONS)
         refreshed_plan = await self.session.scalars(stmt)
         return refreshed_plan.one()
 
@@ -304,7 +300,7 @@ class PlanRepository:
         stmt = (
             select(StoredPlannedDay)
             .filter(StoredPlannedDay.day.between(start_date, end_date), StoredPlannedDay.user_pk == user_pk)
-            .options(joinedload(StoredPlannedDay.recipe))
+            .options(*PLANNED_DAY_LOAD_OPTIONS)
         )
         stmt_result = await self.session.scalars(stmt)
         return list(stmt_result.fetchall())
