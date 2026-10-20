@@ -455,7 +455,17 @@ Still worth considering: a scheduled off-Pi copy (a `meals-backup.timer` systemd
 `scp`/`rsync` to another machine on the tailnet), and the JSON/YAML export in Features
 item 6.
 
-### 5. Add logging and a global exception handler — P2
+### 5. Add logging and a global exception handler — P2 (done)
+
+**Fixed:** logging is configured once in `meals/logging_config.py`: one JSON object per line on
+stdout (so journald captures it), a `RequestIdFilter` that stamps every record with the current
+request ID, and a `LOG_LEVEL` setting (default `INFO`). `meals/middleware.py` gives every HTTP
+request an ID (reusing a caller-supplied `X-Request-ID`), returns it in the response header, and
+logs method, path, status and duration. `meals/error_handlers.py` handles SQLAlchemy errors,
+pydantic `ValidationError`, FastAPI's `ResponseValidationError`, and a catch-all: each logs the
+traceback with the request ID and returns a clean response — JSON with a `request_id` field for
+`/api` routes, a small HTML fragment for pages. The `# TODO: add logging here` in
+`src/meals/web/new.py` now logs the unexpected case. Tests live in `tests/test_logging.py`.
 
 There is no `@app.exception_handler` and no logging configuration; unhandled
 `IntegrityError`s surface as bare 500s, and `src/meals/web/new.py` has a

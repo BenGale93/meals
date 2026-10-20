@@ -1,5 +1,6 @@
 """The websites new recipe page."""
 
+import logging
 import typing as t
 
 from fastapi import Form
@@ -20,6 +21,8 @@ from meals.web.core import (
     router,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def new_recipe_error(error: Exception) -> ComponentType:
     """Component returned when an error occurs adding a new recipe."""
@@ -30,7 +33,7 @@ def new_recipe_error(error: Exception) -> ComponentType:
         messages = [html.p(format_new_recipe_error(e)) for e in error.errors()]
         messages = ["❌ Error(s) adding recipe", html.br(), *messages]
     else:  # pragma: no cover # If we knew how to trigger this, we would handle it better
-        # TODO: add logging here
+        logger.error("Unexpected error adding a recipe", exc_info=error)
         messages = ["Unexpected error adding a recipe"]
     return html.div(
         *messages,

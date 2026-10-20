@@ -127,9 +127,13 @@ restart.
 
 ```bash
 systemctl status meals
-journalctl -u meals -f          # logs
+journalctl -u meals -f          # logs (one JSON object per line)
 systemctl restart meals
 ```
+
+Every response carries an `X-Request-ID` header, and the matching request, error and traceback
+lines in the journal use the same ID (filter with `journalctl -u meals | grep <id>`). Set
+`LOG_LEVEL` in `.env` to adjust verbosity (default `INFO`).
 
 ## Backups and restore
 

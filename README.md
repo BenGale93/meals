@@ -45,3 +45,18 @@ service (which applies Alembic migrations first), and waits for `/health`. For a
 copy, and `just candidate promote` performs the cutover. See
 [`deploy/README.md`](deploy/README.md) for the units, configuration, rollback, and restore
 steps. Logs are at `journalctl -u meals -f`.
+
+## Logging
+
+The app writes one JSON object per line to stdout, which systemd captures in journald:
+
+```bash
+journalctl -u meals -f
+journalctl -u meals -f | jq .            # if jq is installed
+```
+
+Set `LOG_LEVEL` (default `INFO`, e.g. `DEBUG`) in `.env` to change verbosity. Every request
+gets an ID — returned in the `X-Request-ID` response header and included in its log line, so a
+failing response can be matched to its server-side traceback. Unhandled database, validation and
+other errors are logged with that traceback and return a clean response (JSON for `/api`, an
+HTML fragment for pages) instead of an unhandled traceback.
