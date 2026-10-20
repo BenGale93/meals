@@ -101,7 +101,10 @@ class PlanService:
         return [RecipeSummary(name=name, count=count, last_eaten=last_eaten) for name, count, last_eaten in summary]
 
     async def plan(self, data: PlannedDay, user_pk: int) -> PlannedDayResponse:
-        """Plan a recipe on a day."""
+        """Plan one of the user's recipes on a day."""
+        recipe = await self._recipe_repo.get(data.recipe.pk, user_pk)
+        if recipe is None:
+            raise RecipeDoesNotExistError
         return PlannedDayResponse.model_validate(await self._plan_repo.update(data, user_pk))
 
     async def plan_by_meal_name(self, meal: str, day: date, user_pk: int) -> PlannedDayResponse | None:

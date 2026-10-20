@@ -123,7 +123,10 @@ async def update_planned_day(
     data: schemas.PlannedDay, service: PlanServiceDep, user: CurrentUser
 ) -> schemas.PlannedDayResponse:
     """Update the planned day."""
-    return await service.plan(data, user.pk)
+    try:
+        return await service.plan(data, user.pk)
+    except RecipeDoesNotExistError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message) from None
 
 
 @router.get("/planned_day", status_code=status.HTTP_200_OK)

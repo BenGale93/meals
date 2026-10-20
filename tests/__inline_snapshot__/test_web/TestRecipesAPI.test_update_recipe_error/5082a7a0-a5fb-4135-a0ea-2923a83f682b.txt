@@ -1,5 +1,5 @@
 <div class="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg mb-4">
 ❌ Error(s) updating recipe
 <br />
-<p >Issue with ingredient 1: Expected ingredient to be in form: 'name quantity unit'. Where quantity is a number.</p>
+<p >Issue with ingredient 1: Expected ingredient to be in form: 'name quantity unit' or 'quantity unit name', where quantity is a number or fraction. Examples: 'Flour 2 cups', '500g beef', '1/2 cup sugar'.</p>
 </div>

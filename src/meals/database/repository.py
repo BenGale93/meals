@@ -320,7 +320,9 @@ class PlanRepository:
             .where(StoredRecipe.user_pk == user_pk)
             .join(
                 StoredPlannedDay,
-                (StoredPlannedDay.recipe_pk == StoredRecipe.pk) & (StoredPlannedDay.day <= date.today()),
+                (StoredPlannedDay.recipe_pk == StoredRecipe.pk)
+                & (StoredPlannedDay.user_pk == user_pk)
+                & (StoredPlannedDay.day <= date.today()),
                 isouter=True,
             )
             .group_by(StoredRecipe.name)

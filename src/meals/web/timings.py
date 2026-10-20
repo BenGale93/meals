@@ -122,7 +122,6 @@ def save_timing() -> ComponentType:
             hx_vals="js:{'finish_time': Alpine.store('finishTime'), 'steps': JSON.stringify(Alpine.store('steps'))}",
             hx_target="#form-result",
             hx_swap="innerHTML",
-            hx_ext="json-enc",
             class_="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition",
         ),
         class_="mt-6 text-right",

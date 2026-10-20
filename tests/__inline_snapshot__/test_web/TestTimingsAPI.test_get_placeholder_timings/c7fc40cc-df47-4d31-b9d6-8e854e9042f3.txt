@@ -32,7 +32,7 @@ x
 </button>
 </div>
 <div class="mt-6 text-right">
-<button type="button" hx-patch="/timings" hx-vals="js:{'finish_time': Alpine.store('finishTime'), 'steps': JSON.stringify(Alpine.store('steps'))}" hx-target="#form-result" hx-swap="innerHTML" hx-ext="json-enc" class="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition">
+<button type="button" hx-patch="/timings" hx-vals="js:{'finish_time': Alpine.store('finishTime'), 'steps': JSON.stringify(Alpine.store('steps'))}" hx-target="#form-result" hx-swap="innerHTML" class="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition">
 Save Timing
 </button>
 </div>

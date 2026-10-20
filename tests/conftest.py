@@ -4,10 +4,10 @@ from datetime import time
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from meals.app import app
-from meals.database.session import Base, get_db
+from meals.database.session import Base, create_async_db_engine, get_db
 from meals.schemas import CreateRecipeRequest, CreateUserRequest, RecipeStep, TimingsCreate, TimingSteps
 
 
@@ -23,7 +23,7 @@ def user_two():
 
 @pytest_asyncio.fixture
 async def db_session(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/test.db")
+    engine = create_async_db_engine(f"sqlite+aiosqlite:///{tmp_path}/test.db")
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

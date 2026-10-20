@@ -6,6 +6,7 @@ import time_machine
 from fastapi import status
 from inline_snapshot import snapshot as snap
 
+from meals.database.models import StoredPlannedDay
 from meals.schemas import (
     CreateIngredientRequest,
     IngredientResponse,
@@ -411,6 +412,17 @@ class TestRecipesAPI:
             )
         )
 
+    async def test_two_users_can_use_same_recipe_name(
+        self, client: AsyncClient, user_two_client: AsyncClient, carrots_recipe
+    ):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response = await user_two_client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+
+        assert response.status_code == status.HTTP_201_CREATED
+
     async def test_create_fails_if_not_a_user(self, bad_client: AsyncClient, carrots_recipe):
         headers = {"Authorization": "Basic " + base64.b64encode(b"fake:test").decode()}
         response = await bad_client.post("/api/v1/recipes", json=carrots_recipe.model_dump(), headers=headers)
@@ -545,6 +557,44 @@ class TestPlannedDayAPI:
             PlannedDayResponse(pk=1, day=dt.date(2025, 1, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise"))
         )
 
+    async def test_two_users_can_plan_same_day(self, client: AsyncClient, user_two_client: AsyncClient, carrots_recipe):
+        first_recipe = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        first_recipe.raise_for_status()
+        second_recipe = await user_two_client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        second_recipe.raise_for_status()
+
+        first_plan = await client.post(
+            "/api/v1/planned_day",
+            json={"day": "2025-01-01", "recipe": PlannedRecipe.model_validate(first_recipe.json()).model_dump()},
+        )
+        second_plan = await user_two_client.post(
+            "/api/v1/planned_day",
+            json={"day": "2025-01-01", "recipe": PlannedRecipe.model_validate(second_recipe.json()).model_dump()},
+        )
+
+        assert first_plan.status_code == status.HTTP_201_CREATED
+        assert second_plan.status_code == status.HTTP_201_CREATED
+        assert first_plan.json()["pk"] != second_plan.json()["pk"]
+
+    async def test_cannot_plan_another_users_recipe(
+        self, client: AsyncClient, user_two_client: AsyncClient, carrots_recipe
+    ):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        response.raise_for_status()
+        recipe = PlannedRecipe.model_validate(response.json())
+
+        response = await user_two_client.post(
+            "/api/v1/planned_day",
+            json={"day": "2025-01-01", "recipe": recipe.model_dump()},
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+        check = await user_two_client.get(
+            "/api/v1/planned_day", params={"start_date": "2025-01-01", "end_date": "2025-01-01"}
+        )
+        assert check.json() == []
+
     async def test_get_range(self, client: AsyncClient, carrots_recipe):
         recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
 
@@ -568,6 +618,25 @@ class TestPlannedDayAPI:
                 PlannedDayResponse(pk=2, day=dt.date(2025, 2, 1), recipe=PlannedRecipe(pk=1, name="Carrot Surprise")),
             ]
         )
+
+    @time_machine.travel(dt.date(2025, 1, 1))
+    async def test_summarise_ignores_other_users_plans(
+        self, client: AsyncClient, user_two_client: AsyncClient, db_session, carrots_recipe
+    ):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        response.raise_for_status()
+        recipe = PlannedRecipe.model_validate(response.json())
+
+        user_two = (await user_two_client.get("/api/v1/users/me")).json()
+
+        # Simulate a cross-user plan stored before this was rejected.
+        db_session.add(StoredPlannedDay(day=dt.date(2025, 1, 1), recipe_pk=recipe.pk, user_pk=user_two["pk"]))
+        await db_session.flush()
+
+        summary_response = await client.get("/api/v1/planned_day/summary/")
+        summary = [RecipeSummary.model_validate(s) for s in summary_response.json()]
+
+        assert summary == [RecipeSummary(name="Carrot Surprise", count=0, last_eaten=None)]
 
     @time_machine.travel(dt.date(2025, 1, 1))
     async def test_summarise(self, client: AsyncClient, take_away, carrots_recipe):

@@ -256,6 +256,15 @@ class TestTimingsAPI:
         assert response.text == external("uuid:c7fc40cc-df47-4d31-b9d6-8e854e9042f3.txt")
         assert response.status_code == status.HTTP_200_OK
 
+    async def test_save_uses_form_encoding(self, client: AsyncClient):
+        response = await client.get("/timings")
+
+        # The PATCH route reads Form() fields, so the button must not ask HTMX for
+        # the (unloaded) json-enc extension.
+        assert 'hx-patch="/timings"' in response.text
+        assert "json-enc" not in response.text
+        assert 'hx-vals="js:' in response.text
+
     async def test_get_existing_timings(self, client: AsyncClient):
         new_timings = {"finish_time": "12:00:00", "steps": '[{"description": "End", "offset": 0}]'}
         response = await client.patch("/timings", data=new_timings)

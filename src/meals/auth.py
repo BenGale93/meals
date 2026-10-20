@@ -17,7 +17,9 @@ async def get_current_user(
     """Gets the current user by their user name.
 
     Note:
-        Obviously this should be via a token.
+        The password is deliberately not checked: this is a placeholder for a
+        single-user, Tailscale-only deployment (see the README). Do not mistake it
+        for real authentication.
     """
     user = await repo.get_by_name(credentials.username)
     if user is None:

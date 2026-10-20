@@ -2,7 +2,7 @@
 
 from datetime import date, time  # noqa: TC003
 
-from sqlalchemy import Date, Float, ForeignKey, Integer, String, Text, Time
+from sqlalchemy import Date, Float, ForeignKey, Integer, String, Text, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from meals.database.session import Base
@@ -26,8 +26,10 @@ class StoredRecipe(Base):
     """Table for recipes."""
 
     __tablename__ = "recipes"
+    __table_args__ = (UniqueConstraint("user_pk", "name", name="uq_recipes_user_pk_name"),)
+
     pk: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     instructions: Mapped[str] = mapped_column(Text, nullable=False)
 
     ingredients: Mapped[list[RecipeIngredient]] = relationship(
@@ -37,7 +39,9 @@ class StoredRecipe(Base):
     user_pk: Mapped[int] = mapped_column(Integer, ForeignKey("users.pk"), nullable=False)
     user: Mapped[User] = relationship(back_populates="recipes")
 
-    planned: Mapped[list[StoredPlannedDay]] = relationship(back_populates="recipe")
+    planned: Mapped[list[StoredPlannedDay]] = relationship(
+        back_populates="recipe", cascade="all, delete-orphan", passive_deletes=True
+    )
 
     def __repr__(self) -> str:  # noqa: D105
         return f"<Recipe(pk={self.pk}, name={self.name})>"
@@ -95,11 +99,14 @@ class StoredPlannedDay(Base):
     """Table for planned days."""
 
     __tablename__ = "planned_days"
+    __table_args__ = (UniqueConstraint("user_pk", "day", name="uq_planned_days_user_pk_day"),)
 
     pk: Mapped[int] = mapped_column(Integer, primary_key=True)
-    day: Mapped[date] = mapped_column(Date, nullable=False, unique=True)
+    day: Mapped[date] = mapped_column(Date, nullable=False)
 
-    recipe_pk: Mapped[int] = mapped_column(ForeignKey("recipes.pk"))
+    recipe_pk: Mapped[int] = mapped_column(
+        ForeignKey("recipes.pk", ondelete="CASCADE", name="fk_planned_days_recipe_pk_recipes")
+    )
 
     recipe: Mapped[StoredRecipe] = relationship(back_populates="planned")
 

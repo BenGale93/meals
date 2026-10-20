@@ -11,6 +11,14 @@ recently/not so recently.
 
 A Roast timer view, for planning the timings of roast dinners.
 
+## Authentication
+
+Authentication is a **placeholder**. The app uses HTTP Basic auth, but only the username is
+looked up: the password is never checked, and users are created without one. This is
+acceptable only because the app is single-user and reachable through a Tailscale tailnet.
+Do not expose it to the public internet or to devices you do not trust. Real security would
+mean hashing a password at user creation and verifying it in `meals.auth.get_current_user`.
+
 ## Development
 
 ```bash

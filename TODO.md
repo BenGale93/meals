@@ -125,7 +125,14 @@ automatically); do not treat an old backup as permanently done.
 
 ## Bugs
 
-### 1. (Latent) Uniqueness constraints are global, not per-user — P2
+### 1. (Latent) Uniqueness constraints are global, not per-user — P2 (done)
+
+**Fixed:** `recipes.name` and `planned_days.day` no longer use `unique=True`; both tables now
+have a composite `UniqueConstraint("user_pk", "name")` / `("user_pk", "day")`. Migration
+`50a4ce8e8245` drops the old single-column constraints and adds the composite ones in batch
+mode (verified upgrade, downgrade and `alembic check` on a fresh database). Tests prove two
+users can reuse a recipe name and plan the same day, while the application-level 409s are
+unchanged.
 
 `recipes.name` and `planned_days.day` are declared `unique=True` on the column
 (`src/meals/database/models.py`), but every repository lookup is scoped to the user
@@ -182,7 +189,12 @@ behaviour (probably sum quantities or reject with a clear 422) and cover it with
 Rejecting duplicate names in `CreateRecipeRequest`/`UpdateRecipeRequest` validation is the
 simplest fix.
 
-### 4. (Latent) Cross-user authorization hole in `POST /api/v1/planned_day` — P2
+### 4. (Latent) Cross-user authorization hole in `POST /api/v1/planned_day` — P2 (done)
+
+**Fixed:** `PlanService.plan` looks the recipe up scoped to the requesting user and raises
+`RecipeDoesNotExistError`, which the API maps to 404. `PlanRepository.summarise` also scopes
+its outer join to `StoredPlannedDay.user_pk`, so a pre-existing plan stored by another user
+cannot inflate the owner's counts. Tests cover the rejected cross-user plan and the summary.
 
 `PlanRepository.update` blindly sets `planned.recipe_pk = planned_day.recipe.pk` without
 verifying the recipe belongs to the requesting user. Any authenticated user (i.e. anything
@@ -195,7 +207,11 @@ Only relevant once there is more than one user. Verify recipe ownership in the
 repository/route (404/403 on mismatch) and also scope `PlanRepository.summarise` by
 `StoredPlannedDay.user_pk` (see bug 6).
 
-### 5. Passwords are never checked (auth is username-only) — P2 hardening
+### 5. Passwords are never checked (auth is username-only) — P2 (done)
+
+**Fixed (documentation only):** `README.md` now has an Authentication section stating that the
+password is a placeholder and only the username is checked, and `get_current_user`'s docstring
+says the same. No hashing or session flow was added for this single-user, Tailscale-only app.
 
 `src/meals/auth.py` only looks the user up by `credentials.username` and ignores
 `credentials.password`; `CreateUserRequest` has no password field and `auth_headers()`
@@ -267,7 +283,11 @@ For a single user this is a real "why is the page empty?" annoyance every time t
 resets. Either require `CurrentUser` on the page routes too, or add a simple login page
 and redirect unauthenticated users to it (ties into bug 5).
 
-### 9. `hx-ext="json-enc"` is used but the extension is never loaded — P2
+### 9. `hx-ext="json-enc"` is used but the extension is never loaded — P2 (done)
+
+**Fixed:** dropped `hx_ext="json-enc"` from the Save Timing button. HTMX now uses its default
+form encoding, which is exactly what the `Form()`-based `PATCH /timings` route reads. A test
+asserts the markup no longer references the unloaded extension and still sends `hx-vals`.
 
 `save_timing()` in `src/meals/web/timings.py` sets `hx_ext="json-enc"`, but no `json-enc`
 script is included in the page layout (`page()` in `src/meals/web/core.py`). HTMX
@@ -289,7 +309,13 @@ and `GET /recipe/9999/edit` raise; they should return a 404 (or a small "recipe 
 fragment). `update_recipe` already handles the missing case via `RecipeDoesNotExistError`,
 so use that as the pattern.
 
-### 11. SQLite foreign keys are not enforced — P2
+### 11. SQLite foreign keys are not enforced — P2 (done)
+
+**Fixed:** `create_async_db_engine` registers a connect listener that runs
+`PRAGMA foreign_keys=ON`; tests use the same factory, so the suite exercises it.
+`planned_days.recipe_pk` is now `ON DELETE CASCADE` with `passive_deletes` on
+`StoredRecipe.planned`, so deleting a recipe removes its plans (migration `0cba625154a2`).
+Tests assert the pragma, reject an orphan join row, and verify the cascade.
 
 `PRAGMA foreign_keys` defaults to OFF in SQLite and nothing enables it
 (`src/meals/database/session.py`). Reproduction (confirmed): inserting a
@@ -303,7 +329,12 @@ a `connect`-event listener (`PRAGMA foreign_keys=ON`), decide the delete behavio
 planned days, and test the cascade. Latent now, but becomes P1 the moment recipe deletion
 is implemented.
 
-### 12. Ingredient parsing is brittle — P2
+### 12. Ingredient parsing is brittle — P2 (done)
+
+**Fixed:** the parser now accepts name-first or quantity-first forms with integer, decimal or
+fractional quantities and a single-word unit: `Flour 2 cups`, `500g beef`, `2 tins tomatoes`,
+`1/2 cup sugar`, `1.5 kg beef`. Unitless input is still rejected, and the error message lists
+accepted examples. Tests cover both accepted and rejected forms.
 
 `INGREDIENT_REGEX` in `src/meals/schemas.py` only accepts `name quantity unit`, in that
 order, with a space-separated numeric quantity. Reproduction (confirmed) — these common

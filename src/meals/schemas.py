@@ -4,10 +4,21 @@ import base64
 import re
 import typing as t
 from datetime import date, time  # noqa: TC003
+from fractions import Fraction
 
 from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
 
-INGREDIENT_REGEX = re.compile(r"([a-zA-Z ]+)([\d.]+)([a-zA-Z ]+)")
+QUANTITY = r"\d+(?:\.\d+)?|\d+/\d+"
+QUANTITY_FIRST_REGEX = re.compile(
+    rf"\s*(?P<quantity>{QUANTITY})\s*(?P<unit>[a-zA-Z]+)\s+(?P<name>[a-zA-Z][a-zA-Z '&-]*?)\s*"
+)
+NAME_FIRST_REGEX = re.compile(
+    rf"\s*(?P<name>[a-zA-Z][a-zA-Z '&-]*?)\s+(?P<quantity>{QUANTITY})\s+(?P<unit>[a-zA-Z]+)\s*"
+)
+INGREDIENT_ERROR = (
+    "Expected ingredient to be in form: 'name quantity unit' or 'quantity unit name', "
+    "where quantity is a number or fraction. Examples: 'Flour 2 cups', '500g beef', '1/2 cup sugar'."
+)
 
 
 class CreateUserRequest(BaseModel):
@@ -39,15 +50,14 @@ class CreateIngredientRequest(BaseModel):
         if not isinstance(data, str):
             return data
 
-        match = INGREDIENT_REGEX.search(data)
+        match = QUANTITY_FIRST_REGEX.fullmatch(data) or NAME_FIRST_REGEX.fullmatch(data)
         if match is None:
-            msg = "Expected ingredient to be in form: 'name quantity unit'. Where quantity is a number."
-            raise ValueError(msg) from None
+            raise ValueError(INGREDIENT_ERROR) from None
 
         return {
-            "name": match.group(1).strip(),
-            "quantity": match.group(2),
-            "unit": match.group(3).strip(),
+            "name": match.group("name").strip(),
+            "quantity": float(Fraction(match.group("quantity"))),
+            "unit": match.group("unit").strip(),
         }
 
 
