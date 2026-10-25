@@ -6,9 +6,12 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from meals.app import app
+from meals.app import create_app
 from meals.database.session import Base, create_async_db_engine, get_db
 from meals.schemas import CreateRecipeRequest, CreateUserRequest, RecipeStep, TimingsCreate, TimingSteps
+
+if t.TYPE_CHECKING:
+    from fastapi import FastAPI
 
 
 @pytest.fixture
@@ -35,8 +38,13 @@ async def db_session(tmp_path):
 
 
 @pytest.fixture
-def test_app(db_session: AsyncSession) -> t.Any:
-    """Create a test app with overridden dependencies."""
+def test_app(db_session: AsyncSession) -> FastAPI:
+    """Create a fresh app per test, with the database dependency overridden.
+
+    A new app keeps ``dependency_overrides`` out of the module-global
+    application, so overrides cannot leak between tests (or between workers).
+    """
+    app = create_app()
     app.dependency_overrides[get_db] = lambda: db_session
     return app
 

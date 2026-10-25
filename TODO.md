@@ -763,12 +763,13 @@ auth, or CLI layers (directly or transitively). Both contracts were verified to 
 violations before being restored, and `AGENTS.md` plus the `meals.auth` docstring document the
 placement.
 
-### 6. Test fixtures mutate the global app and never clean up — P2
+### 6. Test fixtures mutate the global app and never clean up — P2 (done)
 
-`test_app` in `tests/conftest.py` sets `app.dependency_overrides[get_db]` on the
-module-global `app` and never clears it. With `pytest-randomly` reordering tests this is a
-latent hazard, and it is what makes the suite unable to run in parallel. Clear the
-override in teardown, or build a fresh `FastAPI` instance per test.
+**Fixed:** `test_app` in `tests/conftest.py` now calls `create_app()` to build a fresh
+`FastAPI` instance per test and installs the `get_db` override on that instance, so the
+module-global app is never mutated and overrides cannot leak between tests or workers.
+`tests/test_app.py` asserts the fixture's app differs from the global app and that the global
+app has no dependency overrides.
 
 ### 7. Test DB session doesn't mirror production transaction handling — P2
 
