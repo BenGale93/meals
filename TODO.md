@@ -788,14 +788,17 @@ targeted assertions (substring or DOM-parsed checks for the behaviour under test
 reserve snapshots for small, meaningful fragments. The `feat/labels` branch already moved
 toward this with `tests/api_assertions.py` (Repo Admin item 8) — align with that approach.
 
-### 9. 100% coverage is hiding gaps behind `# pragma: no cover` — P2
+### 9. 100% coverage is hiding gaps behind `# pragma: no cover` — P2 (done)
 
-Some pragmas look suspicious: `CreateRecipes.__iter__` is excluded while the identical
-`Recipes.__iter__` is covered, and `repository.py` has `# Not possible` branches that may
-in fact be reachable. Meanwhile the bugs found by manual probing (duplicate ingredients,
-rename collisions, missing pks) show line coverage does not catch negative paths. Audit the
-pragmas, add edge/negative-path tests, and confirm each excluded branch is genuinely
-unreachable or delete the dead code.
+**Fixed:** every `# pragma: no cover` in `src/` was audited and removed; there are none left.
+The two `# Not possible` branches in `RecipeRepository.update` were genuinely dead (the name
+sets were derived from the same data), so the update now builds a name → ingredient mapping and
+indexes it directly; the now-unused `UpdateRecipeRequest.get_ingredient` helper was deleted.
+Reachable paths gained tests: `CreateRecipes.__iter__`, the named-field branch of
+`format_new_recipe_error` (which now reports the field instead of "Unknown error"), the
+unexpected-error branch of the new-recipe form (`RuntimeError` from the service), and
+`get_db` itself (a real transaction that commits on generator completion). Coverage remains at
+100% with no `# pragma: no cover` sites left in `src/`, and the suite is up to 138 tests.
 
 ### 10. Split the large test modules by domain — P3 (done)
 

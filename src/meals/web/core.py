@@ -22,8 +22,8 @@ def format_new_recipe_error(error: ErrorDetails) -> str:
             return f"Issue with ingredient {number}: {msg}"
         case ():
             return msg
-        case _:  # pragma: no cover # If we knew how to trigger this, we would handle it better
-            return f"Unknown error: {error}"
+        case _:
+            return f"Issue with {error['loc'][0]}: {msg}"
 
 
 def clean_ingredients(ingredients: list[str]) -> list[str]:

@@ -1,10 +1,25 @@
 from typing import TYPE_CHECKING
 
+import pytest
 from inline_snapshot import external
+from pydantic import ValidationError
 from starlette import status
+
+from meals.schemas import CreateRecipeRequest
+from meals.services import RecipeService
+from meals.web.core import format_new_recipe_error
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
+
+
+def test_format_new_recipe_error_for_a_named_field():
+    with pytest.raises(ValidationError) as exc_info:
+        CreateRecipeRequest.model_validate({"name": 1, "ingredients": [], "instructions": ""})
+
+    message = format_new_recipe_error(exc_info.value.errors()[0])
+
+    assert message == "Issue with name: Input should be a valid string"
 
 
 class TestRecipesAPI:
@@ -183,6 +198,21 @@ class TestNewRecipeAPI:
         response.raise_for_status()
 
         assert response.text == external("uuid:9d7c702c-8859-4660-812c-7797f6bdc57b.txt")
+
+    async def test_unexpected_error(self, client: AsyncClient, monkeypatch):
+        async def fail(*_args, **_kwargs):
+            msg = "boom"
+            raise RuntimeError(msg)
+
+        monkeypatch.setattr(RecipeService, "create", fail)
+
+        response = await client.post(
+            "/new_recipe",
+            data={"name": "Test", "ingredients": ["Flour 2 cups"], "instructions": "Test steps"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "Unexpected error adding a recipe" in response.text
 
     async def test_new_recipe_no_ingredients_no_instructions(self, client: AsyncClient):
         new_recipe = {"name": "Test", "ingredients": [], "instructions": ""}

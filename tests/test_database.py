@@ -4,9 +4,11 @@ from typing import TYPE_CHECKING
 import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from meals.database.models import RecipeIngredient, StoredPlannedDay, StoredRecipe
+from meals.database.models import RecipeIngredient, StoredPlannedDay, StoredRecipe, User
 from meals.database.repository import PlanRepository, RecipeRepository, UserRepository
+from meals.database.session import Base, create_async_db_engine, get_db
 from meals.schemas import (
     CreateUserRequest,
     PlannedDay,
@@ -17,6 +19,29 @@ from meals.schemas import (
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+
+async def test_get_db_commits_when_the_request_finishes(monkeypatch, tmp_path):
+    engine = create_async_db_engine(f"sqlite+aiosqlite:///{tmp_path}/get_db.db")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    session_factory = async_sessionmaker(engine)
+    monkeypatch.setattr("meals.database.session.async_session", session_factory)
+
+    generator = get_db()
+    session = await anext(generator)
+    session.add(User(user_name="Committed"))
+
+    with pytest.raises(StopAsyncIteration):
+        await anext(generator)
+
+    async with session_factory() as check_session:
+        user = (await check_session.scalars(select(User))).one()
+
+    assert user.user_name == "Committed"
+
+    await engine.dispose()
 
 
 async def test_foreign_keys_are_enforced(db_session: AsyncSession):

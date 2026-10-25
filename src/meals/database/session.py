@@ -46,7 +46,7 @@ async_engine = create_async_db_engine(DATABASE_URL)
 async_session = async_sessionmaker(async_engine, expire_on_commit=False)
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, t.Any]:  # pragma: no cover # This is overridden in tests
+async def get_db() -> AsyncGenerator[AsyncSession, t.Any]:
     """Get a database session.
 
     To be used for dependency injection.

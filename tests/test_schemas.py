@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from meals.schemas import CreateIngredientRequest, CreateRecipeRequest
+from meals.schemas import CreateIngredientRequest, CreateRecipeRequest, CreateRecipes
 
 
 @pytest.mark.parametrize(
@@ -31,3 +31,9 @@ def test_ingredient_rejects_incomplete_forms(raw: str):
 def test_ingredient_incorrect_structure():
     with pytest.raises(ValidationError, match=r"Expected ingredient to be in form: 'name quantity unit'"):
         CreateRecipeRequest.model_validate({"name": "Test", "ingredients": ["Test"], "instructions": "Test"})
+
+
+def test_create_recipes_is_iterable():
+    recipes = CreateRecipes.model_validate([{"name": "Test", "ingredients": [], "instructions": ""}])
+
+    assert [recipe.name for recipe in recipes] == ["Test"]

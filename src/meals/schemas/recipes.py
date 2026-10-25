@@ -117,20 +117,13 @@ class UpdateRecipeRequest(BaseModel):
         check_unique_ingredient_names(self.ingredients)
         return self
 
-    def get_ingredient(self, name: str) -> CreateIngredientRequest | None:
-        """Get the ingredient by name."""
-        for i in self.ingredients:
-            if i.name == name:
-                return i
-        return None
-
 
 class CreateRecipes(RootModel[list[CreateRecipeRequest]]):
     """A list of recipes to create."""
 
     @t.override
     def __iter__(self) -> t.Iterator[CreateRecipeRequest]:  # pyrefly: ignore[bad-override]
-        return iter(self.root)  # pragma: no cover
+        return iter(self.root)
 
 
 class Recipes(RootModel[list[RecipeResponse]]):

@@ -160,17 +160,14 @@ class RecipeRepository:
         existing_recipe.name = recipe_data.name
         existing_recipe.instructions = recipe_data.instructions
 
+        new_ingredients = {i.name: i for i in recipe_data.ingredients}
         existing_ingredient_names = {i.ingredient.name for i in existing_recipe.ingredients}
-        new_ingredient_names = {i.name for i in recipe_data.ingredients}
 
-        to_delete = existing_ingredient_names - new_ingredient_names
-        to_add = new_ingredient_names - existing_ingredient_names
-        to_update = existing_ingredient_names | new_ingredient_names
+        to_delete = existing_ingredient_names - new_ingredients.keys()
+        to_add = new_ingredients.keys() - existing_ingredient_names
 
         for existing in existing_recipe.ingredients:
-            if existing.ingredient.name not in to_update:  # pragma: no cover # Not possible
-                continue
-            new_i = recipe_data.get_ingredient(existing.ingredient.name)
+            new_i = new_ingredients.get(existing.ingredient.name)
             if new_i is not None:
                 existing.quantity = new_i.quantity
                 existing.unit = new_i.unit
@@ -178,9 +175,7 @@ class RecipeRepository:
         existing_recipe.ingredients = [i for i in existing_recipe.ingredients if i.ingredient.name not in to_delete]
 
         for new in to_add:
-            new_i = recipe_data.get_ingredient(new)
-            if new_i is None:  # pragma: no cover # Not possible
-                continue
+            new_i = new_ingredients[new]
             ing_stmt = select(StoredIngredient).filter_by(name=new_i.name)
             ing_stmt_result = await self.session.scalars(ing_stmt)
             ingredient = ing_stmt_result.first()

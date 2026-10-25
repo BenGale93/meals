@@ -33,7 +33,7 @@ def new_recipe_error(error: Exception) -> ComponentType:
     elif isinstance(error, ValidationError):
         messages = [html.p(format_new_recipe_error(e)) for e in error.errors()]
         messages = ["❌ Error(s) adding recipe", html.br(), *messages]
-    else:  # pragma: no cover # If we knew how to trigger this, we would handle it better
+    else:
         logger.error("Unexpected error adding a recipe", exc_info=error)
         messages = ["Unexpected error adding a recipe"]
     return html.div(
