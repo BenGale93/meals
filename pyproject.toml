@@ -95,10 +95,42 @@ asyncio_mode = "auto"
 [tool.importlinter]
 root_package = "meals"
 
+# The HTTP layers are peers; both sit above the application layer, which sits
+# above persistence. `meals.auth` is an application-layer dependency (it reads
+# the user repository and is consumed by the API and web layers), so it lives
+# alongside `meals.services` and may not be imported by the database.
 [[tool.importlinter.contracts]]
 name = "Layers"
 type = "layers"
-layers = ["meals.api | meals.web", "meals.services", "meals.database"]
+layers = [
+  "meals.api | meals.web",
+  "meals.services | meals.auth",
+  "meals.database",
+]
+
+# The remaining core/infrastructure modules are deliberately outside the
+# contract above, so state explicitly that none of them may reach up into the
+# HTTP, use-case, or CLI layers (or the application composition root).
+[[tool.importlinter.contracts]]
+name = "Core modules do not depend on upper layers"
+type = "forbidden"
+source_modules = [
+  "meals.database",
+  "meals.schemas",
+  "meals.exceptions",
+  "meals.settings",
+  "meals.logging_config",
+  "meals.middleware",
+  "meals.error_handlers",
+]
+forbidden_modules = [
+  "meals.api",
+  "meals.web",
+  "meals.app",
+  "meals.services",
+  "meals.auth",
+  "meals.cli",
+]
 
 [tool.inline-snapshot]
 format-command = "uv run ruff format --stdin-filename {filename}"

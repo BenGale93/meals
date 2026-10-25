@@ -752,13 +752,16 @@ module was left out of `__init__.py` instead of silently dropping a page. `tests
 asserts the exact page set and navigation order, that every declared page returns 200, and
 that both failure modes raise.
 
-### 5. Import-linter contract doesn't cover the non-layered modules — P3
+### 5. Import-linter contract doesn't cover the non-layered modules — P3 (done)
 
-The single contract only constrains `meals.api | meals.web` vs `meals.database`. `meals/auth.py`,
-`meals/schemas.py`, and `meals/exceptions.py` sit outside it, so nothing stops
-`meals.database` (or `meals.schemas`) from importing web/API helpers. Add a contract that
-the database/core modules may not import the web or API layers, and decide explicitly where
-`auth.py` belongs in the layering.
+**Fixed:** the configuration now has two contracts. The layered contract places `meals.auth`
+explicitly in the application layer (`meals.api | meals.web` → `meals.services | meals.auth` →
+`meals.database`), so the database can no longer import it. A second `forbidden` contract makes
+`meals.database`, `meals.schemas`, `meals.exceptions`, `meals.settings`, `meals.logging_config`,
+`meals.middleware`, and `meals.error_handlers` unable to import the API, web, app, services,
+auth, or CLI layers (directly or transitively). Both contracts were verified to fail on temporary
+violations before being restored, and `AGENTS.md` plus the `meals.auth` docstring document the
+placement.
 
 ### 6. Test fixtures mutate the global app and never clean up — P2
 

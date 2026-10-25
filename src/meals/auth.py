@@ -1,4 +1,9 @@
-"""Module for user authentication."""
+"""Module for user authentication.
+
+This is an application-layer dependency: it uses the database user repository and is
+consumed by the API and web layers, so it sits alongside :mod:`meals.services` rather
+than in the core/database layer (see the import-linter contracts in ``pyproject.toml``).
+"""
 
 import typing as t
 
