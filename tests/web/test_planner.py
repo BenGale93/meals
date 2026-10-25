@@ -2,8 +2,9 @@ from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
 import time_machine
-from inline_snapshot import external
 from starlette import status
+
+from .assertions import assert_meal_options, assert_page_shell, assert_summary_rows
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -14,7 +15,12 @@ class TestPlannerAPI:
         response = await client.get("/plan.html")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.text == external("uuid:6b3bec63-ac97-44ef-bf76-29922cffce88.txt")
+        assert_page_shell(response)
+        assert "Weekly Meal Plan" in response.text
+        assert 'hx-get="/weeks_plan"' in response.text
+        assert 'hx-get="/summary"' in response.text
+        assert "show-success" in response.text
+        assert "show-error" in response.text
 
     @time_machine.travel(date(2020, 1, 1))
     async def test_get_weeks_plan(self, client: AsyncClient, carrots_recipe):
@@ -29,27 +35,29 @@ class TestPlannerAPI:
         assert response.status_code == status.HTTP_200_OK
         assert carrots_recipe.name in response.text
         assert today.strftime("%Y-%m-%d") in response.text
-        assert response.text == external("uuid:ebe86d54-196e-4401-ae8a-a7738a8f302e.txt")
+        assert f'value="{today.isoformat()}" name="day"' in response.text
+        assert 'value="Carrot Surprise"' in response.text
+        assert response.text.count('hx-post="/planned_day"') == 7
 
     async def test_get_meals_like(self, client: AsyncClient, carrots_recipe):
         await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
         response = await client.get("/meals", params={"meal": "carr"})
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.text == external("uuid:6ef373f6-1019-4d22-bd09-a0c745a76cb4.txt")
+        assert_meal_options(response, [carrots_recipe.name])
 
     async def test_meals_like_empty_string(self, client: AsyncClient, carrots_recipe):
         await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
         response = await client.get("/meals", params={"meal": ""})
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.text == external("uuid:d74c18ec-7300-4d4c-b858-f08ecf9672f9.txt")
+        assert_meal_options(response, [carrots_recipe.name])
 
     async def test_meals_like_no_match(self, client: AsyncClient):
         response = await client.get("/meals", params={"meal": "nomatch"})
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.text == external("uuid:a0b193ca-c6a8-4051-b067-a1e4bd0b5997.txt")
+        assert_meal_options(response, [])
 
     @time_machine.travel(date(2020, 1, 1))
     async def test_update_planned_day(self, client: AsyncClient, carrots_recipe):
@@ -91,7 +99,7 @@ class TestPlannerAPI:
         response = await client.get("/summary")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.text == external("uuid:fcdd9952-417d-4282-aea9-9fb83decbe44.txt")
+        assert_summary_rows(response, [])
 
     @time_machine.travel(date(2020, 1, 1))
     async def test_get_summary_table_with_recipe(self, client: AsyncClient, carrots_recipe):
@@ -101,9 +109,7 @@ class TestPlannerAPI:
         response = await client.get("/summary")
 
         assert response.status_code == status.HTTP_200_OK
-        assert carrots_recipe.name in response.text
-        assert "1" in response.text
-        assert today.isoformat() in response.text
+        assert_summary_rows(response, [(carrots_recipe.name, 1, today.isoformat())])
 
     @time_machine.travel(date(2020, 1, 1))
     async def test_get_summary_table_multiple_plans(self, client: AsyncClient, carrots_recipe):
@@ -117,9 +123,7 @@ class TestPlannerAPI:
         response = await client.get("/summary")
 
         assert response.status_code == status.HTTP_200_OK
-        assert carrots_recipe.name in response.text
-        assert "2" in response.text
-        assert today.isoformat() in response.text
+        assert_summary_rows(response, [(carrots_recipe.name, 2, today.isoformat())])
 
     @time_machine.travel(date(2020, 1, 1))
     async def test_get_summary_table_unplanned_recipe(self, client: AsyncClient, carrots_recipe, pasta_recipe):
@@ -132,4 +136,4 @@ class TestPlannerAPI:
         response = await client.get("/summary")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.text == external("uuid:d5f95a03-1289-49bc-adcb-4bdd63929b72.txt")
+        assert_summary_rows(response, [(carrots_recipe.name, 1, today.isoformat()), (pasta_recipe.name, 0, "Never")])

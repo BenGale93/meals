@@ -782,13 +782,15 @@ real `BEGIN`, the fixture forces it before any savepoint is opened. New tests co
 per-request sessions, request commits being visible to the test session, and request writes
 staying inside the uncommitted test transaction so they cannot leak. Suite: 141 tests.
 
-### 8. Full-page external snapshots are brittle and opaque — P2
+### 8. Full-page external snapshots are brittle and opaque — P2 (done)
 
-`inline-snapshot` stores entire HTML documents under `tests/__inline_snapshot__/` keyed by
-UUID, so any layout change rewrites whole blobs and the diffs are hard to review. Prefer
-targeted assertions (substring or DOM-parsed checks for the behaviour under test) and
-reserve snapshots for small, meaningful fragments. The `feat/labels` branch already moved
-toward this with `tests/api_assertions.py` (Repo Admin item 8) — align with that approach.
+**Fixed:** removed all 26 external HTML snapshots and the `tests/web/__inline_snapshot__/`
+tree. The web tests now assert the behaviour they exercise: the shared page frame and navigation,
+recipe cards/forms/error alerts, parsed Alpine timing state, meal datalist options, and parsed
+summary-table rows. `tests/web/assertions.py` holds the shared HTML assertions, mirroring the
+targeted-assertion approach of `api_assertions.py` on `feat/labels`; small inline snapshots remain
+for API payloads. Pyrefly's `search-path` now includes the project root so tests can import the
+shared helper. The suite remains at 141 tests and 100% coverage.
 
 ### 9. 100% coverage is hiding gaps behind `# pragma: no cover` — P2 (done)
 

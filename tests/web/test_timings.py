@@ -1,25 +1,44 @@
 import html
 import json
 import re
+import typing as t
 from typing import TYPE_CHECKING
 
-from inline_snapshot import external
 from starlette import status
 
+from .assertions import assert_page_shell
+
 if TYPE_CHECKING:
-    from httpx import AsyncClient
+    from httpx import AsyncClient, Response
+
+
+def timing_state(response: Response) -> dict[str, t.Any]:
+    """Return the JSON state the Alpine timing component is initialised with."""
+    match = re.search(r"""x-data=(?P<quote>['"])timingApp\((?P<state>\{.*?\})\)(?P=quote)""", response.text)
+    assert match is not None
+
+    return t.cast("dict[str, t.Any]", json.loads(html.unescape(match["state"])))
 
 
 class TestTimingsAPI:
     async def test_get_index(self, client: AsyncClient):
         response = await client.get("/timings.html")
 
-        assert response.text == external("uuid:4f1d948c-f93c-45aa-8a23-9f6313ce0029.txt")
+        assert_page_shell(response)
+        assert "Timing Plan" in response.text
+        assert 'hx-get="/timings"' in response.text
+        assert 'id="timing-container"' in response.text
+        assert "Loading timing data..." in response.text
 
     async def test_get_placeholder_timings(self, client: AsyncClient):
         response = await client.get("/timings")
-        assert response.text == external("uuid:c7fc40cc-df47-4d31-b9d6-8e854e9042f3.txt")
+
         assert response.status_code == status.HTTP_200_OK
+        state = timing_state(response)
+        assert state["pk"] is None
+        assert state["finish_time"] == "18:00:00"
+        assert state["steps"] == [{"description": "Finish", "offset": 0}]
+        assert 'x-init="init()"' in response.text
 
     async def test_save_uses_form_encoding(self, client: AsyncClient):
         response = await client.get("/timings")
@@ -35,16 +54,20 @@ class TestTimingsAPI:
         response = await client.patch("/timings", data=new_timings)
 
         response = await client.get("/timings")
-        assert response.text == external("uuid:d2116b7b-a0d7-4b66-8e69-b8a6e91a77d1.txt")
         assert response.status_code == status.HTTP_200_OK
         assert "12:00:00" in response.text
+
+        state = timing_state(response)
+        assert state["pk"] is not None
+        assert state["finish_time"] == "12:00:00"
+        assert state["steps"] == [{"description": "End", "offset": 0}]
 
     async def test_update_timings(self, client: AsyncClient):
         new_timings = {"finish_time": "12:00:00", "steps": '[{"description": "End", "offset": 0}]'}
         response = await client.patch("/timings", data=new_timings)
 
-        assert response.text == external("uuid:2646a836-6c9e-4f73-a93c-b47f075457f0.txt")
         assert response.status_code == status.HTTP_200_OK
+        assert "Timing saved successfully" in response.text
 
         check = await client.get("/api/v1/timings")
         pk = check.json().get("pk")
@@ -55,8 +78,8 @@ class TestTimingsAPI:
         new_timings = {"finish_time": "12:00:00", "steps": '[{"description": "End", "offset": 10}]'}
         response = await client.patch("/timings", data=new_timings)
 
-        assert response.text == external("uuid:f577cc02-d394-4019-b6fa-50584bbebff0.txt")
-        assert "Error" in response.text
+        assert response.status_code == status.HTTP_200_OK
+        assert "Error saving timings" in response.text
 
     async def test_alpine_component_initial_state(self, client: AsyncClient):
         steps = [
@@ -70,10 +93,7 @@ class TestTimingsAPI:
         assert response.status_code == status.HTTP_200_OK
         assert 'x-init="init()"' in response.text
 
-        match = re.search(r"""x-data=(?P<quote>['"])timingApp\((?P<state>\{.*?\})\)(?P=quote)""", response.text)
-        assert match is not None
-
-        state = json.loads(html.unescape(match["state"]))
+        state = timing_state(response)
 
         assert state["steps"] == steps
         assert state["finish_time"] == "18:30:00"

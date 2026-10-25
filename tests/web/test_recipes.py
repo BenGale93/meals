@@ -1,13 +1,14 @@
 from typing import TYPE_CHECKING
 
 import pytest
-from inline_snapshot import external
 from pydantic import ValidationError
 from starlette import status
 
 from meals.schemas import CreateRecipeRequest
 from meals.services import RecipeService
 from meals.web.core import format_new_recipe_error
+
+from .assertions import assert_page_shell
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -30,7 +31,11 @@ class TestRecipesAPI:
 
         response = await client.get(f"/recipe/{pk}")
 
-        assert response.text == external("uuid:435bfb88-5a75-41c2-84ee-a75e8237f184.txt")
+        assert response.status_code == status.HTTP_200_OK
+        assert "Carrot Surprise" in response.text
+        assert "Carrot 10.0 units" in response.text
+        assert "Test instructions" in response.text
+        assert f'hx-get="/recipe/{pk}/edit"' in response.text
 
     async def test_get_recipes(self, client: AsyncClient, carrots_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
@@ -41,7 +46,11 @@ class TestRecipesAPI:
 
         response = await client.get("/recipes")
 
-        assert response.text == external("uuid:c27cf730-5ec8-49ff-a1a0-293cc267fc4f.txt")
+        assert response.status_code == status.HTTP_200_OK
+        assert "<main" in response.text
+        assert "Carrot Surprise" in response.text
+        assert "Carrot 10.0 units" in response.text
+        assert f'hx-get="/recipe/{pk}/edit"' in response.text
 
     async def test_get_recipe_names(self, client: AsyncClient, carrots_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
@@ -52,7 +61,10 @@ class TestRecipesAPI:
 
         response = await client.get("/recipe_list")
 
-        assert response.text == external("uuid:ee140c45-c153-492c-9ed1-3d0629cd9ffd.txt")
+        assert response.status_code == status.HTTP_200_OK
+        assert "Contents" in response.text
+        assert 'href="#Carrot-Surprise"' in response.text
+        assert "Carrot Surprise" in response.text
 
     async def test_update_recipe(self, client: AsyncClient, carrots_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
@@ -64,7 +76,11 @@ class TestRecipesAPI:
 
         response = await client.post(f"/update_recipe/{pk}", data=json_result)
 
-        assert response.text == external("uuid:6020747d-93b4-4204-a629-05d1397c361c.txt")
+        assert response.status_code == status.HTTP_200_OK
+        assert "Carrot stew" in response.text
+        assert "Carrot Surprise" not in response.text
+        assert "Carrot 10.0 units" in response.text
+        assert f'hx-get="/recipe/{pk}/edit"' in response.text
 
     async def test_update_recipe_error(self, client: AsyncClient, carrots_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
@@ -75,7 +91,9 @@ class TestRecipesAPI:
 
         response = await client.post(f"/update_recipe/{pk}", data=json_result)
 
-        assert response.text == external("uuid:5082a7a0-a5fb-4135-a0ea-2923a83f682b.txt")
+        assert response.status_code == status.HTTP_200_OK
+        assert "Error(s) updating recipe" in response.text
+        assert "Issue with ingredient 1" in response.text
 
     async def test_update_recipe_clears_last_ingredient(self, client: AsyncClient, carrots_recipe):
         response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
@@ -126,7 +144,12 @@ class TestRecipesAPI:
 
         response = await client.get(f"/recipe/{pk}/edit")
 
-        assert response.text == external("uuid:1c790be2-234d-4760-a157-e9f5674bc83e.txt")
+        assert response.status_code == status.HTTP_200_OK
+        assert f'hx-post="/update_recipe/{pk}"' in response.text
+        assert 'value="Carrot Surprise"' in response.text
+        assert 'value="Carrot 10.0 units"' in response.text
+        assert "Test instructions" in response.text
+        assert f'hx-get="/recipe/{pk}"' in response.text
 
     async def test_get_missing_recipe(self, client: AsyncClient):
         response = await client.get("/recipe/9999")
@@ -143,14 +166,20 @@ class TestNewRecipeAPI:
     async def test_get_new_page(self, client: AsyncClient):
         response = await client.get("/new.html")
 
-        assert response.text == external("uuid:ac29b30e-908a-4923-b547-323a96ac28c4.txt")
+        assert_page_shell(response)
+        assert "Create a New Recipe" in response.text
+        assert 'hx-post="/new_recipe"' in response.text
+        assert 'placeholder="Flour 2 cups"' in response.text
 
     async def test_new_recipe_success(self, client: AsyncClient):
         new_recipe = {"name": "Test", "ingredients": ["Flour 2 cups"], "instructions": "Test steps"}
         response = await client.post("/new_recipe", data=new_recipe)
 
-        assert response.text == external("uuid:7cc71c6a-a97a-4da6-badb-33e3f217338b.txt")
         assert response.status_code == status.HTTP_200_OK
+        assert 'id="Test"' in response.text
+        assert ">Test</h2>" in response.text
+        assert "Flour 2.0 cups" in response.text
+        assert "Test steps" in response.text
 
         check = await client.get("/api/v1/recipes/", params={"name": "Test"})
         pk = check.json().get("pk")
@@ -161,7 +190,10 @@ class TestNewRecipeAPI:
         new_recipe = {"name": "Test", "ingredients": ["Flour"], "instructions": "Test steps"}
         response = await client.post("/new_recipe", data=new_recipe)
 
-        assert response.text == external("uuid:86353837-4246-4783-bba1-b1f2a9c6d326.txt")
+        assert response.status_code == status.HTTP_200_OK
+        assert "Error(s) adding recipe" in response.text
+        assert "Issue with ingredient 1" in response.text
+        assert "Expected ingredient to be in form" in response.text
 
         check = await client.get("/api/v1/recipes/", params={"name": "Test"})
         pk = check.json().get("pk")
@@ -172,7 +204,10 @@ class TestNewRecipeAPI:
         new_recipe = {"name": "Test", "ingredients": ["Flour z cups"], "instructions": "Test steps"}
         response = await client.post("/new_recipe", data=new_recipe)
 
-        assert response.text == external("uuid:32181578-b896-4df8-959e-43e2747c900a.txt")
+        assert response.status_code == status.HTTP_200_OK
+        assert "Error(s) adding recipe" in response.text
+        assert "Issue with ingredient 1" in response.text
+        assert "Expected ingredient to be in form" in response.text
 
         check = await client.get("/api/v1/recipes/", params={"name": "Test"})
         pk = check.json().get("pk")
@@ -183,7 +218,10 @@ class TestNewRecipeAPI:
         new_recipe = {"name": "Test", "ingredients": ["Flour 1"], "instructions": "Test steps"}
         response = await client.post("/new_recipe", data=new_recipe)
 
-        assert response.text == external("uuid:4cb59c1f-bc19-4b10-91c8-b2451f2eac58.txt")
+        assert response.status_code == status.HTTP_200_OK
+        assert "Error(s) adding recipe" in response.text
+        assert "Issue with ingredient 1" in response.text
+        assert "Expected ingredient to be in form" in response.text
 
         check = await client.get("/api/v1/recipes/", params={"name": "Test"})
         pk = check.json().get("pk")
@@ -197,7 +235,8 @@ class TestNewRecipeAPI:
         response = await client.post("/new_recipe", data=new_recipe)
         response.raise_for_status()
 
-        assert response.text == external("uuid:9d7c702c-8859-4660-812c-7797f6bdc57b.txt")
+        assert response.status_code == status.HTTP_200_OK
+        assert "Recipe already exists. Choose a different name." in response.text
 
     async def test_unexpected_error(self, client: AsyncClient, monkeypatch):
         async def fail(*_args, **_kwargs):

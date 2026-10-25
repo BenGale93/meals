@@ -1,10 +1,11 @@
 from typing import TYPE_CHECKING
 
 import pytest
-from inline_snapshot import external
 from starlette import status
 
 from meals.web.core import PAGES, Page, PageRegistry
+
+from .assertions import assert_page_shell
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -40,12 +41,19 @@ class TestViewAPI:
     async def test_get_index(self, client: AsyncClient):
         response = await client.get("/")
 
-        assert response.text == external("uuid:c2fba73d-0743-47cb-93b3-13735fa031f8.txt")
+        assert_page_shell(response)
+        assert 'hx-get="/recipe_list"' in response.text
+        assert 'hx-get="/recipes"' in response.text
 
     async def test_get_new_recipe(self, client: AsyncClient):
         response = await client.get("/new.html")
 
-        assert response.text == external("uuid:efb61175-7f7a-4a21-be06-fada95992420.txt")
+        assert_page_shell(response)
+        assert "Create a New Recipe" in response.text
+        assert 'hx-post="/new_recipe"' in response.text
+        assert 'name="name"' in response.text
+        assert 'name="ingredients"' in response.text
+        assert 'name="instructions"' in response.text
 
     async def test_page_shells_require_auth(self, bad_client: AsyncClient):
         for path in ["/", "/new.html", "/plan.html", "/timings.html"]:

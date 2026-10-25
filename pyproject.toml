@@ -137,6 +137,7 @@ format-command = "uv run ruff format --stdin-filename {filename}"
 
 [tool.pyrefly]
 preset = "strict"
+search-path = ["src", "."]
 project-includes = ["src", "tests"]
 project-excludes = ["**/build*"]
 check-unannotated-defs = true
