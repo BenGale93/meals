@@ -723,7 +723,16 @@ response model touches" rule (in the repository docstring or `AGENTS.md`) and/or
 that hits each endpoint after creating related data. Consider centralizing the load options
 instead of repeating them per method.
 
-### 3. `schemas.py` is a single grab-bag module — P2
+### 3. `schemas.py` is a single grab-bag module — P2 (done)
+
+**Fixed:** `src/meals/schemas.py` is now a package split by domain: `users.py`,
+`recipes.py` (including the ingredient parser and its regex/error constants), `timings.py`,
+and `planner.py`. `schemas/__init__.py` re-exports every public name, so existing
+`from meals.schemas import ...` and `from meals import schemas` imports, the API/web/CLI
+call sites, and the tests are unchanged. There are no cross-domain imports; the two
+`pyrefly: ignore[bad-override]` comments on the `RootModel` iterators moved with their
+models. Coverage remains at 100% and `schemas/__init__.py` is exercised through the existing
+suite.
 
 All user, recipe, ingredient, timing, and planner models live in one file
 (`src/meals/schemas.py`). As labels and non-recipe meals land this will grow unwieldy.

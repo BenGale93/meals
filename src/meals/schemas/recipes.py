@@ -1,12 +1,15 @@
-"""Module containing all the meal schemas."""
+"""Request and response models for recipes and their ingredients.
 
-import base64
+Ingredients are parsed from the human-friendly strings the forms and seed files use
+(``"Flour 2 cups"`` / ``"500g beef"``); the parsed name, quantity and unit are what the API
+and database store.
+"""
+
 import re
 import typing as t
-from datetime import date, time  # noqa: TC003
 from fractions import Fraction
 
-from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
+from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, RootModel, model_validator
 
 QUANTITY = r"\d+(?:\.\d+)?|\d+/\d+"
 QUANTITY_FIRST_REGEX = re.compile(
@@ -19,21 +22,6 @@ INGREDIENT_ERROR = (
     "Expected ingredient to be in form: 'name quantity unit' or 'quantity unit name', "
     "where quantity is a number or fraction. Examples: 'Flour 2 cups', '500g beef', '1/2 cup sugar'."
 )
-
-
-class CreateUserRequest(BaseModel):
-    user_name: str
-
-    def auth_headers(self) -> dict[str, str]:
-        """Returns auth headers for the user."""
-        return {"Authorization": "Basic " + base64.b64encode(f"{self.user_name}:test".encode()).decode()}
-
-
-class UserResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    pk: int
-    user_name: str
 
 
 class CreateIngredientRequest(BaseModel):
@@ -153,74 +141,3 @@ class Recipes(RootModel[list[RecipeResponse]]):
     @t.override
     def __iter__(self) -> t.Iterator[RecipeResponse]:  # pyrefly: ignore[bad-override]
         return iter(self.root)
-
-
-class RecipeStep(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    description: str
-    offset: int = Field(le=0)
-
-
-class TimingSteps(RootModel[list[RecipeStep]]):
-    model_config = ConfigDict(from_attributes=True)
-
-
-class TimingsCreate(BaseModel):
-    steps: TimingSteps
-    finish_time: time
-
-    @field_serializer("finish_time", mode="plain")
-    def time_to_str(self, value: time) -> str:
-        """Formats the time as a string."""
-        return value.isoformat()
-
-
-class TimingsResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    pk: int | None
-    steps: TimingSteps
-    finish_time: time
-
-
-class PlannedRecipe(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    pk: int
-    name: str
-
-
-class PlannedDay(BaseModel):
-    day: date
-    recipe: PlannedRecipe
-
-    @field_serializer("day", mode="plain")
-    def day_to_str(self, value: date) -> str:
-        """Formats the day as a string."""
-        return value.isoformat()
-
-
-class PlannedDayResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    pk: int
-    day: date
-    recipe: PlannedRecipe | None
-
-
-class DayToPlan(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    day: date
-    recipe: PlannedRecipe | None
-
-
-class PlannedDays(RootModel[list[DayToPlan]]):
-    pass
-
-
-class RecipeSummary(BaseModel):
-    name: str
-    count: int
-    last_eaten: date | None
