@@ -771,14 +771,16 @@ module-global app is never mutated and overrides cannot leak between tests or wo
 `tests/test_app.py` asserts the fixture's app differs from the global app and that the global
 app has no dependency overrides.
 
-### 7. Test DB session doesn't mirror production transaction handling — P2
+### 7. Test DB session doesn't mirror production transaction handling — P2 (done)
 
-Production `get_db` yields a session inside `session.begin()` (committing on exit); the test
-override yields a bare, shared session and only `flush()` is exercised. Commit/rollback
-behaviour and per-request session isolation are therefore never tested — which is how the
-`no_autoflush` ingredient bug (bug 3) survived 100% coverage. Adopt the documented
-SQLAlchemy "join an external transaction" test pattern so the app runs against a
-per-request session that rolls back after each test.
+**Fixed:** `tests/conftest.py` now follows SQLAlchemy's external-transaction pattern: each test
+holds one outer transaction (`db_connection`), the test-side `db_session` and every request
+session join it with `join_transaction_mode="create_savepoint"`, and the `get_db` override
+mirrors production by opening a fresh session inside `session.begin()` per request. The outer
+transaction is rolled back after the test; because SQLite's legacy transaction mode defers the
+real `BEGIN`, the fixture forces it before any savepoint is opened. New tests cover independent
+per-request sessions, request commits being visible to the test session, and request writes
+staying inside the uncommitted test transaction so they cannot leak. Suite: 141 tests.
 
 ### 8. Full-page external snapshots are brittle and opaque — P2
 

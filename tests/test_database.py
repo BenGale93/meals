@@ -44,6 +44,37 @@ async def test_get_db_commits_when_the_request_finishes(monkeypatch, tmp_path):
     await engine.dispose()
 
 
+async def test_requests_use_independent_sessions(test_get_db):
+    first = test_get_db()
+    first_session = await anext(first)
+    second = test_get_db()
+    second_session = await anext(second)
+
+    assert first_session is not second_session
+
+    await second.aclose()
+    await first.aclose()
+
+
+async def test_request_commit_is_visible_to_the_test_session(client, db_session, carrots_recipe):
+    response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+    response.raise_for_status()
+
+    pk = response.json()["pk"]
+
+    assert await db_session.get(StoredRecipe, pk) is not None
+
+
+async def test_request_writes_stay_inside_the_test_transaction(client, db_engine, carrots_recipe):
+    response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+    response.raise_for_status()
+
+    # A separate connection cannot see the uncommitted outer transaction, so the
+    # request's savepoint commit will be rolled back with the test.
+    async with db_engine.connect() as other_connection:
+        assert (await other_connection.scalars(select(StoredRecipe))).first() is None
+
+
 async def test_foreign_keys_are_enforced(db_session: AsyncSession):
     assert (await db_session.execute(text("PRAGMA foreign_keys"))).scalar() == 1
 

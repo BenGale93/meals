@@ -4,7 +4,7 @@ from datetime import time
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from meals.app import create_app
 from meals.database.session import Base, create_async_db_engine, get_db
@@ -25,27 +25,70 @@ def user_two():
 
 
 @pytest_asyncio.fixture
-async def db_session(tmp_path):
+async def db_engine(tmp_path):
+    """Create the per-test database and engine."""
     engine = create_async_db_engine(f"sqlite+aiosqlite:///{tmp_path}/test.db")
 
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
-    session = async_sessionmaker(engine)()
+    yield engine
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db_connection(db_engine):
+    """Hold one outer transaction that is rolled back after the test.
+
+    Everything the app and the tests do happens inside this transaction (via
+    savepoints), so a test can never leak data or schema changes into another
+    one, even if a request really commits.
+    """
+    async with db_engine.connect() as connection:
+        transaction = await connection.begin()
+        # SQLite's legacy transaction mode defers the real BEGIN until the first
+        # DML statement. A savepoint opened before that would commit on its own
+        # instead of joining the outer transaction, so force the BEGIN now.
+        await connection.exec_driver_sql("BEGIN")
+        yield connection
+        await transaction.rollback()
+
+
+@pytest_asyncio.fixture
+async def db_session(db_connection):
+    """A test-side session that joins the outer transaction."""
+    session = AsyncSession(bind=db_connection, expire_on_commit=False, join_transaction_mode="create_savepoint")
     yield session
     await session.close()
 
 
 @pytest.fixture
-def test_app(db_session: AsyncSession) -> FastAPI:
+def test_get_db(db_connection):
+    """Mirror production ``get_db``: a fresh session per request, inside a savepoint."""
+
+    async def override_get_db() -> t.AsyncIterator[AsyncSession]:
+        async with (
+            AsyncSession(
+                bind=db_connection, expire_on_commit=False, join_transaction_mode="create_savepoint"
+            ) as session,
+            session.begin(),
+        ):
+            yield session
+
+    return override_get_db
+
+
+@pytest.fixture
+def test_app(test_get_db) -> FastAPI:
     """Create a fresh app per test, with the database dependency overridden.
 
     A new app keeps ``dependency_overrides`` out of the module-global
     application, so overrides cannot leak between tests (or between workers).
+    Test requests get their own session, exactly like production, rather than
+    sharing one bare session with the test body.
     """
     app = create_app()
-    app.dependency_overrides[get_db] = lambda: db_session
+    app.dependency_overrides[get_db] = test_get_db
     return app
 
 
