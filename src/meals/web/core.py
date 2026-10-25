@@ -127,12 +127,12 @@ def page(content: ComponentType) -> Component:
                 html.title("Meal Manager"),
                 html.Meta.charset(),
                 html.Meta.viewport(),
-                # TailwindCSS
-                html.script(src="https://cdn.tailwindcss.com"),
+                # TailwindCSS (Play CDN; the path pins the exact version)
+                html.script(src="https://cdn.tailwindcss.com/3.4.19"),
                 # HTMX
-                html.script(src="https://unpkg.com/htmx.org@2.0.2"),
-                # Apline
-                html.script(src="https://unpkg.com/alpinejs@3.x.x", defer=""),
+                html.script(src="https://unpkg.com/htmx.org@2.0.2/dist/htmx.min.js"),
+                # Alpine
+                html.script(src="https://unpkg.com/alpinejs@3.17.5/dist/cdn.min.js", defer=""),
             ),
             html.body(
                 html.header(

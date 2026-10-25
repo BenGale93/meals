@@ -513,7 +513,22 @@ unmerged and not deployed (the Pi database has no labels tables); note that the 
 checkout's own `meals.db` *does* contain label tables from an earlier experiment, so it is
 not a valid stand-in for the production schema.
 
-### 8. Tidy tooling and documentation — P3
+### 8. Tidy tooling and documentation — P3 (done)
+
+**Fixed:** the stale `filterwarnings` comment in `pyproject.toml` now says "except from our
+own package". `README.md` is no longer only a feature blurb: it documents requirements and
+setup (`uv sync`, `just migrate`, `just start`), environment configuration (`DATABASE_URL`,
+`LOG_LEVEL`, and which commands load `.env`), the lint/type-check/test commands and the
+100%-coverage rule, migrations, deployment and rollback, backups and restore, logging, and the
+placeholder authentication, linking to `deploy/README.md` for the full procedures. The CDN
+assets in `src/meals/web/core.py` are pinned to exact versions (Tailwind `3.4.19`, HTMX
+`2.0.2` with the explicit `dist/htmx.min.js` path, Alpine `3.17.5` with `dist/cdn.min.js`)
+instead of Alpine's floating `3.x.x` and the unpinned Tailwind Play CDN; the web snapshots
+were updated (only the three `src` attributes changed), and
+`test_frontend_assets_are_pinned` asserts the exact versions so they cannot drift again.
+Vendoring the three files and serving
+them from FastAPI remains an option if CDN access becomes a problem, but pinning removes the
+unreviewed-upgrade risk without adding an asset build.
 
 - The `filterwarnings` comment in `pyproject.toml` says "except from mymodule" but the
   pattern is `meals.*` — stale copy-paste.

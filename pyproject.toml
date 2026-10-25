@@ -86,7 +86,7 @@ branch = true
 [tool.pytest.ini_options]
 filterwarnings = [
   "ignore::DeprecationWarning::",         # ignore deprecations from all modules
-  "default::DeprecationWarning:meals.*:", # except from mymodule
+  "default::DeprecationWarning:meals.*:", # except from our own package
   "ignore::UserWarning",
 ]
 addopts = "--cov=src/ --cov-report="
