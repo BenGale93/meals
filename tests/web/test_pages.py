@@ -1,10 +1,39 @@
 from typing import TYPE_CHECKING
 
+import pytest
 from inline_snapshot import external
 from starlette import status
 
+from meals.web.core import PAGES, Page, PageRegistry
+
 if TYPE_CHECKING:
     from httpx import AsyncClient
+
+
+class TestPageRegistry:
+    def test_declared_pages_are_registered_in_navigation_order(self):
+        assert PageRegistry.pages() == [
+            ("Recipes", "/"),
+            ("New Recipe", "/new.html"),
+            ("Planner", "/plan.html"),
+            ("Timings", "/timings.html"),
+        ]
+
+    async def test_every_declared_page_is_routed(self, client: AsyncClient):
+        for page in PAGES:
+            response = await client.get(page.path)
+
+            assert response.status_code == status.HTTP_200_OK
+
+    def test_undeclared_page_cannot_be_registered(self):
+        with pytest.raises(ValueError, match="is not declared in PAGES"):
+            PageRegistry.register(Page("Missing", "/missing.html"))
+
+    def test_validate_reports_unregistered_pages(self, monkeypatch):
+        monkeypatch.setattr(PageRegistry, "_registered", set())
+
+        with pytest.raises(RuntimeError, match="were not registered"):
+            PageRegistry.validate()
 
 
 class TestViewAPI:

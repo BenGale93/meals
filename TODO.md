@@ -739,13 +739,18 @@ All user, recipe, ingredient, timing, and planner models live in one file
 Split into a `meals/schemas/` package by domain (users, recipes, timings, planner) with a
 re-exporting `__init__` so import sites stay stable.
 
-### 4. `PageRegistry` + import-side-effect registration is fragile — P3
+### 4. `PageRegistry` + import-side-effect registration is fragile — P3 (done)
 
-`src/meals/web/core.py` defines a class-level registry keyed by page name, and each page
-module registers itself when imported (`meals/web/__init__.py` imports them purely for that
-side effect). Nav ordering depends on import order, and forgetting to add a module to
-`__init__.py` silently drops its page. Document the convention prominently and/or register
-pages explicitly, and add a test asserting the expected set of pages is registered.
+**Fixed:** the page list is now explicit. `src/meals/web/core.py` declares a `Page`
+(`name`, `path`) for each page and an ordered `PAGES` tuple that is the single source of
+truth for the navigation bar, so nav order no longer depends on import order. Page modules
+import their declared page and use `@PageRegistry.register(RECIPES_PAGE)` and
+`@router.get(RECIPES_PAGE.path)`; registering an undeclared page raises immediately.
+`meals/web/__init__.py` documents that importing the modules is what wires them up, and
+`PageRegistry.validate()` runs in `create_app()`, raising a `RuntimeError` at start-up if a
+module was left out of `__init__.py` instead of silently dropping a page. `tests/web/test_pages.py`
+asserts the exact page set and navigation order, that every declared page returns 200, and
+that both failure modes raise.
 
 ### 5. Import-linter contract doesn't cover the non-layered modules — P3
 

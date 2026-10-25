@@ -6,6 +6,7 @@ from meals.api.v1.routes import router as v1_router
 from meals.error_handlers import register_exception_handlers
 from meals.logging_config import configure_logging
 from meals.middleware import RequestContextMiddleware
+from meals.web.core import PageRegistry
 from meals.web.core import router as view_router
 
 
@@ -23,6 +24,9 @@ def create_app() -> FastAPI:
     # creating an empty one.
     app.include_router(v1_router, prefix="/api")
     app.include_router(view_router)
+    # Fail at start-up if a page module was left out of meals/web/__init__.py,
+    # rather than serving a nav bar with a dead link.
+    PageRegistry.validate()
 
     @app.get("/health")
     async def health() -> dict[str, str]:

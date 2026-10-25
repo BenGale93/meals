@@ -11,6 +11,7 @@ from meals.exceptions import RecipeDoesNotExistError
 from meals.schemas import IngredientResponse, RecipeResponse, Recipes, UpdateRecipeRequest
 from meals.services import RecipeServiceDep  # noqa: TC001
 from meals.web.core import (
+    RECIPES_PAGE,
     PageRegistry,
     clean_ingredients,
     editable_recipe_section,
@@ -161,10 +162,7 @@ def edit_recipe_div(recipe: RecipeResponse) -> ComponentType:
     )
 
 
-PAGE_NAME = "Recipes"
-
-
-@PageRegistry.register(PAGE_NAME, "/")
+@PageRegistry.register(RECIPES_PAGE)
 def index_page(_: t.Any) -> Component:
     """The HTML of the index page of the app."""
     return page(
@@ -175,7 +173,7 @@ def index_page(_: t.Any) -> Component:
     )
 
 
-@router.get(PageRegistry.route(PAGE_NAME))
+@router.get(RECIPES_PAGE.path)
 @htmy_renderer.page(index_page)
 async def index(_: CurrentUser) -> None:
     """The index page of the application."""

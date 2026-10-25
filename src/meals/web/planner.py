@@ -9,9 +9,7 @@ from htmy import Component, ComponentType, html
 from meals.auth import CurrentUser  # noqa: TC001
 from meals.schemas import PlannedDays, RecipeSummary  # noqa: TC001
 from meals.services import PlanServiceDep, RecipeServiceDep  # noqa: TC001
-from meals.web.core import PageRegistry, htmy_renderer, page, router
-
-PAGE_NAME = "Planner"
+from meals.web.core import PLANNER_PAGE, PageRegistry, htmy_renderer, page, router
 
 PLANNER_SCRIPT = html.script("""
 function checkUserKeydown(event) {
@@ -156,7 +154,7 @@ def summary_table(summaries: list[RecipeSummary]) -> ComponentType:
     )
 
 
-@PageRegistry.register(PAGE_NAME, "/plan.html")
+@PageRegistry.register(PLANNER_PAGE)
 def plan_page(_: t.Any) -> Component:
     """The HTML of the plan page of the app."""
     return page(
@@ -172,7 +170,7 @@ def plan_page(_: t.Any) -> Component:
     )
 
 
-@router.get(PageRegistry.route(PAGE_NAME))
+@router.get(PLANNER_PAGE.path)
 @htmy_renderer.page(plan_page)
 async def plan(_: CurrentUser) -> None:
     """The index page of the application."""

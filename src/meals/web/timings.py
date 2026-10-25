@@ -14,9 +14,7 @@ from meals.schemas import (
     TimingSteps,
 )
 from meals.services import TimingsServiceDep  # noqa: TC001
-from meals.web.core import PageRegistry, htmy_renderer, page, router
-
-PAGE_NAME = "Timings"
+from meals.web.core import TIMINGS_PAGE, PageRegistry, htmy_renderer, page, router
 
 TIMINGS_SCRIPT = html.script("""
 function timingApp(initial) {
@@ -175,7 +173,7 @@ def failed_to_update_timings_div(error: Exception) -> ComponentType:  # noqa: AR
     return html.div("Error saving timings", class_="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg mb-4")
 
 
-@PageRegistry.register(PAGE_NAME, "/timings.html")
+@PageRegistry.register(TIMINGS_PAGE)
 def timings_page(_: t.Any) -> Component:
     """The HTML of the timings page of the app."""
     return page(
@@ -194,7 +192,7 @@ def timings_page(_: t.Any) -> Component:
     )
 
 
-@router.get(PageRegistry.route(PAGE_NAME))
+@router.get(TIMINGS_PAGE.path)
 @htmy_renderer.page(timings_page)
 async def timings(_: CurrentUser) -> None:
     """The timings pag of the application."""

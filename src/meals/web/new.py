@@ -12,6 +12,7 @@ from meals.exceptions import RecipeAlreadyExistsError
 from meals.schemas import CreateRecipeRequest, RecipeResponse
 from meals.services import RecipeServiceDep  # noqa: TC001
 from meals.web.core import (
+    NEW_RECIPE_PAGE,
     PageRegistry,
     clean_ingredients,
     format_new_recipe_error,
@@ -39,9 +40,6 @@ def new_recipe_error(error: Exception) -> ComponentType:
         *messages,
         class_="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg",
     )
-
-
-PAGE_NAME = "New Recipe"
 
 
 def recipe_name() -> ComponentType:
@@ -140,7 +138,7 @@ def new_recipe_form() -> ComponentType:
     )
 
 
-@PageRegistry.register(PAGE_NAME, "/new.html")
+@PageRegistry.register(NEW_RECIPE_PAGE)
 def new_recipe_page(_: t.Any) -> Component:
     """The HTML of the page for creating new recipes."""
     return page(
@@ -153,7 +151,7 @@ def new_recipe_page(_: t.Any) -> Component:
     )
 
 
-@router.get(PageRegistry.route(PAGE_NAME))
+@router.get(NEW_RECIPE_PAGE.path)
 @htmy_renderer.page(new_recipe_page)
 async def new(_: CurrentUser) -> None:
     """The new page of the application."""

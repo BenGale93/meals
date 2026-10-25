@@ -45,28 +45,64 @@ P = t.ParamSpec("P")
 PageFunction = t.Callable[P, Component]
 
 
+class Page(t.NamedTuple):
+    """A page linked from the navigation bar."""
+
+    name: str
+    path: str
+
+
+RECIPES_PAGE = Page("Recipes", "/")
+NEW_RECIPE_PAGE = Page("New Recipe", "/new.html")
+PLANNER_PAGE = Page("Planner", "/plan.html")
+TIMINGS_PAGE = Page("Timings", "/timings.html")
+
+#: The single source of truth for the site pages, in navigation order. Declaring
+#: the order here (rather than relying on the order in which modules are
+#: imported) keeps the navigation bar stable.
+PAGES: tuple[Page, ...] = (RECIPES_PAGE, NEW_RECIPE_PAGE, PLANNER_PAGE, TIMINGS_PAGE)
+
+
 class PageRegistry:
-    _page_registry: t.ClassVar[dict[str, str]] = {}
+    """Tracks the page modules imported by :mod:`meals.web`.
+
+    Registration is an import-time side effect: a page module is wired up only
+    if it is imported from ``meals/web/__init__.py`` and decorated with
+    ``@PageRegistry.register(PAGE)``. ``validate()`` (called by
+    :func:`meals.app.create_app`) makes a missing import fail loudly at start-up
+    instead of silently dropping a page.
+    """
+
+    _registered: t.ClassVar[set[Page]] = set()
 
     @classmethod
-    def register[**P](cls, name: str, path: str) -> t.Callable[[PageFunction[P]], PageFunction[P]]:
-        """Register the page with a name and path."""
+    def register[**P](cls, page: Page) -> t.Callable[[PageFunction[P]], PageFunction[P]]:
+        """Register the decorated page function for ``page``."""
+        if page not in PAGES:
+            msg = f"Page {page.name!r} ({page.path!r}) is not declared in PAGES"
+            raise ValueError(msg)
 
         def decorator(fn: PageFunction[P]) -> PageFunction[P]:
-            cls._page_registry[name] = path
+            cls._registered.add(page)
             return fn
 
         return decorator
 
     @classmethod
     def pages(cls) -> list[tuple[str, str]]:
-        """Return the pages."""
-        return [(k, v) for k, v in cls._page_registry.items()]
+        """Return the declared pages in navigation order."""
+        return [(page.name, page.path) for page in PAGES]
 
     @classmethod
-    def route(cls, name: str) -> str:
-        """Get the route associated with the name."""
-        return cls._page_registry[name]
+    def validate(cls) -> None:
+        """Raise if a page declared in :data:`PAGES` was never imported."""
+        missing = [page.name for page in PAGES if page not in cls._registered]
+        if missing:
+            msg = (
+                f"Page(s) {', '.join(missing)} declared in PAGES were not registered; "
+                "import their modules from meals/web/__init__.py"
+            )
+            raise RuntimeError(msg)
 
 
 BURGER_SVG = SafeStr("""
