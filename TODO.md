@@ -29,7 +29,7 @@ nominal priority; pick up Features only once no Bug/Arch item at that level rema
 
 Before finishing any item run `just` (lint + type_check + test). Coverage is enforced at
 100% branch coverage, so every new branch needs a test. Follow the existing test layout
-(`tests/test_api.py`, `tests/test_web.py`, `tests/conftest.py`) and update
+(`tests/api/`, `tests/web/`, `tests/conftest.py`) and update
 `inline-snapshot` snapshots only after eyeballing the new output.
 
 ## Protect the live data (read this first)
@@ -788,7 +788,20 @@ rename collisions, missing pks) show line coverage does not catch negative paths
 pragmas, add edge/negative-path tests, and confirm each excluded branch is genuinely
 unreachable or delete the dead code.
 
-### 10. Split the large test modules by domain — P3
+### 10. Split the large test modules by domain — P3 (done)
+
+**Done:** Replaced `tests/test_api.py` and `tests/test_web.py` with packages split by
+domain: `tests/api/{test_health,test_users,test_recipes,test_timings,test_planner}.py` and
+`tests/web/{test_pages,test_recipes,test_timings,test_planner}.py`. Shared fixtures stay in
+`tests/conftest.py`; the external HTML snapshots moved with their tests to
+`tests/web/__inline_snapshot__/test_<module>/...`, and
+`.inline-snapshot/files_using_external.txt` was regenerated. Removed the stale
+`tests/api_tests/` cache directory and the unused `TestNewRecipeAPI.test_name_is_none`
+snapshot. Added Alpine/JS contract tests for timings in `tests/web/test_timings.py` covering
+the serialized initial state (including quote/HTML escaping), store wiring, add/remove step
+controls, and the finish-time offset calculation. The suite is now 129 tests at 100% branch
+coverage. No JS runtime dependency was added, so the script is asserted at the Alpine
+contract level rather than executed.
 
 `tests/test_api.py` (~570 lines) and `tests/test_web.py` (~350 lines) group everything by
 transport. Split by domain (recipes, users, timings, planner) as the app grows; the

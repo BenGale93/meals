@@ -62,7 +62,7 @@ just test       # pytest, then the 100% branch-coverage gate (alias: just t)
 just start      # FastAPI dev server with reload on http://127.0.0.1:8000
 ```
 
-Run one test with `uv run pytest tests/test_api.py::TestClass::test_name` (add
+Run one test with `uv run pytest tests/api/test_recipes.py::TestRecipesAPI::test_create_and_get_recipe` (add
 `-p no:randomly` when debugging order-dependent failures). Tests use a throwaway SQLite file
 per test and never touch the configured database; HTTP/HTML snapshots are written with
 `inline-snapshot` and updated with `--inline-snapshot=fix` after reviewing the new output.
