@@ -13,7 +13,9 @@ dependencies = [
   "pydantic>=2.14.1",
   "pydantic-yaml>=1.7.0",
   "python-multipart>=0.0.32",
+  "rich>=15.0.0",
   "sqlalchemy[asyncio]>=2.1.5",
+  "typer>=0.27.3",
 ]
 license = "MIT"
 authors = [{ name = "Benjamin Askew-Gale" }]
@@ -37,6 +39,8 @@ typing = ["pyrefly>=1.4.0"]
 typing-test = [{ include-group = "test" }, { include-group = "typing" }]
 
 [project.scripts]
+meals-plan = "meals.cli.plan_meal:app"
+meals-seed = "meals.cli.populate_db:app"
 
 [build-system]
 requires = ["uv_build>=0.9.4,<0.10.0"]

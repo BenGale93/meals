@@ -1,22 +1,22 @@
-end: "17:30"
+finish_time: "17:30"
 steps:
-  - step: Start
+  - description: Start
     offset: -167
-  - step: Oven on
+  - description: Oven on
     offset: -137
-  - step: Chicken in
+  - description: Chicken in
     offset: -127
-  - step: Chicken at 160
+  - description: Chicken at 160
     offset: -107
-  - step: Chicken out
+  - description: Chicken out
     offset: -30
-  - step: Potatoes on
+  - description: Potatoes on
     offset: -30
-  - step: Carrots in
+  - description: Carrots in
     offset: -20
-  - step: Yorkshires in
+  - description: Yorkshires in
     offset: -20
-  - step: Start gravy
+  - description: Start gravy
     offset: -10
-  - step: Finish
+  - description: Finish
     offset: 0

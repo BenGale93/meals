@@ -31,6 +31,23 @@ The app does not create tables itself; Alembic owns the schema (`migrations/`). 
 changing `src/meals/database/models.py`, generate a migration with
 `uv run alembic revision --autogenerate -m "describe the change"`.
 
+## Seeding and CLI helpers
+
+Both helpers talk to a **running** server (start one with `just start`) and are installed as
+console scripts:
+
+```bash
+uv run meals-seed                         # POST recipes.yaml and timings.yaml to :8000
+uv run meals-plan "Beef Stew" 2026-10-26  # plan a meal by name
+```
+
+They use the API at `http://127.0.0.1:8000/api/v1` and authenticate as `Ben`; pass
+`--base-url`/`--user-name` to change that. Seeding is repeatable: an existing user or recipe
+is reported and skipped, and the roast timings are upserted. `recipes.yaml` is not committed
+(it is gitignored), and any `labels` in it are reported and skipped until label support lands
+(TODO -> Features item 1). The database backup helper stays in `scripts/backup_db.py`
+(`just backup`) because it works directly on SQLite without a running server.
+
 ## Deployment
 
 The app runs as a systemd service on the Pi. Releases are deployed **on the Pi** with:

@@ -95,8 +95,8 @@ automatically); do not treat an old backup as permanently done.
 | Admin 2 — data-preserving migrations (Alembic) | P1 |
 | Admin 3 — env-driven config / DB path | P1 |
 | Admin 4 — backups / export of `meals.db` | P1 |
-| Admin 11 — migrate mypy → pyrefly | P1 |
-| Admin 12 — side-by-side (blue/green) upgrades | P1 |
+| Admin 10 — migrate mypy → pyrefly | P1 |
+| Admin 11 — side-by-side (blue/green) upgrades | P1 |
 | Bug 9 — `hx-ext="json-enc"` never loaded | P2 |
 | Bug 1 — global uniqueness constraints | P2 (latent) |
 | Bug 4 — cross-user planned-day auth hole | P2 (latent) |
@@ -105,10 +105,9 @@ automatically); do not treat an old backup as permanently done.
 | Bug 12 — brittle ingredient parsing | P2 |
 | Admin 5 — logging / exception handler | P2 |
 | Admin 6 — seed/CLI scripts | P2 |
-| Admin 7 — `.gitignore` / `AGENTS.md` | P2 |
-| Admin 8 — `feat/labels` branch triage | P2 |
-| Admin 10 — refresh dependencies | P2 |
-| Admin 9 — tooling/documentation tidy | P3 |
+| Admin 7 — `feat/labels` branch triage | P2 |
+| Admin 8 — tooling/documentation tidy | P3 |
+| Admin 9 — refresh dependencies | P2 |
 | Arch 1 — share logic between API and web | P1 |
 | Arch 2 — eager-loading assumptions in response models | P2 |
 | Arch 3 — split the `schemas.py` grab-bag | P2 |
@@ -473,7 +472,21 @@ There is no `@app.exception_handler` and no logging configuration; unhandled
 logging that goes to journald (or the container log), a handler for database/validation
 errors that returns a clean response, and request IDs.
 
-### 6. Fix the seed/CLI scripts — P2
+### 6. Fix the seed/CLI scripts — P2 (done)
+
+**Fixed:** the two HTTP helpers moved into the package as `meals.cli.populate_db` and
+`meals.cli.plan_meal`, are exposed as the `meals-seed` and `meals-plan` console scripts
+(`[project.scripts]`), and `typer`/`rich` are now direct dependencies instead of arriving
+transitively through `fastapi[standard]`. `meals-seed` now seeds both files: it creates the
+user if needed, posts the recipes (skipping existing ones so re-running is safe), and sends
+the roast timings via `PATCH /timings` (an upsert). `timings.yaml` uses the schema's
+`finish_time`/`description` keys. `recipes.yaml` labels are now validated and reported as
+skipped, rather than silently dropped, until Features item 1 adds label storage. Tests in
+`tests/test_cli.py` drive both commands (and the seeding path against the ASGI app), keeping
+the new package modules at 100% coverage. The `pydantic-yaml` warning noted below is already
+gone with the current pydantic/FastAPI versions (see Admin item 9), so no change was needed
+there. `scripts/backup_db.py` stays outside the package because it works on the SQLite file
+itself and must run without a server.
 
 `scripts/populate_db.py` only seeds recipes, silently drops the `labels` present in
 `recipes.yaml` (the current `CreateRecipes`/`CreateRecipeRequest` schemas have no `labels`
@@ -485,17 +498,7 @@ dependencies/entry points, make `populate_db.py` also seed timings (reconciling 
 keys), and seed labels once they exist. Also note `pydantic-yaml` emits a Pydantic V1
 warning on Python 3.14 — check whether an upgrade or alternative is needed.
 
-### 7. Sort out `.gitignore` and untracked guidance — P2
-
-The repo `.gitignore` only covers `__pycache__`, `.venv`, `.coverage`, `*.db`, and
-`recipes.yaml` (plus `.env`, added with the Admin item 3 scaffolding). Cache directories
-(`.mypy_cache/`, `.pytest_cache/`, `.ruff_cache/`,
-`.import_linter_cache/`) are currently ignored only by a developer's global git config,
-and `AGENTS.md` is ignored globally and therefore **not tracked in the repo**. Decide
-whether `AGENTS.md` should be committed (it holds the repository guidelines) and add the
-cache/tooling directories (including `.kiro/`) to `.gitignore` so a fresh clone is clean.
-
-### 8. Triage the `feat/labels` branch — P2
+### 7. Triage the `feat/labels` branch — P2
 
 `origin/feat/labels` (branched from `07102bd`) contains an implemented-but-unmerged
 labels backend: new `Category`/`SubCategory`/`StoredRecipeLabel` models, label schemas,
@@ -510,7 +513,7 @@ unmerged and not deployed (the Pi database has no labels tables); note that the 
 checkout's own `meals.db` *does* contain label tables from an earlier experiment, so it is
 not a valid stand-in for the production schema.
 
-### 9. Tidy tooling and documentation — P3
+### 8. Tidy tooling and documentation — P3
 
 - The `filterwarnings` comment in `pyproject.toml` says "except from mymodule" but the
   pattern is `meals.*` — stale copy-paste.
@@ -521,7 +524,7 @@ not a valid stand-in for the production schema.
   Tailwind). For an internal Tailscale app the supply-chain/reproducibility risk is low,
   but pinning or vendoring avoids surprise breakage when the CDN changes.
 
-### 10. Refresh dependencies — P2 (done)
+### 9. Refresh dependencies — P2 (done)
 
 **Done:** ran `uv lock --upgrade` / `uv sync` and raised the lower bounds in
 `pyproject.toml` to the proven versions. The upgrade surfaced five pieces of fallout, all
@@ -584,7 +587,7 @@ Python 3.14 or greater` on every start. Pydantic 2.14.1 no longer emits it (veri
 isolated environment with FastAPI 0.119.0); the app uses v2 models only, so the warning is
 cosmetic until then.
 
-### 11. Migrate from mypy to pyrefly — P1 (done)
+### 10. Migrate from mypy to pyrefly — P1 (done)
 
 **Migrated:** `uv run pyrefly check` (strict) is now the `just type_check` target and the only
 type checker in the `typing` group; `mypy` and `[tool.mypy]` are gone. Config lives in
@@ -632,7 +635,7 @@ Migrate deliberately, because mypy and pyrefly strict modes are not equivalent:
    unused mypy ignores, then confirm `pyrefly check` stays clean with the coverage gate
    still passing.
 
-### 12. Run upgrades side-by-side (blue/green) rather than in place — P1 (done)
+### 11. Run upgrades side-by-side (blue/green) rather than in place — P1 (done)
 
 The app is always running on the Pi, so rather than stopping it, editing the checkout, and
 hoping a migration works, build and validate a candidate copy **next to** the live app, then
