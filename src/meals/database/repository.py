@@ -4,16 +4,19 @@ import typing as t
 from datetime import date
 
 from fastapi import Depends
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
 from sqlalchemy.orm import joinedload
 
 from meals.database.models import (
+    Category,
     RecipeIngredient,
     StoredIngredient,
     StoredPlannedDay,
     StoredRecipe,
+    StoredRecipeLabel,
     StoredTimings,
+    SubCategory,
     User,
 )
 from meals.database.session import get_db
@@ -25,17 +28,52 @@ from meals.exceptions import (
 )
 
 if t.TYPE_CHECKING:
-    from meals.schemas import CreateRecipeRequest, CreateUserRequest, PlannedDay, TimingsCreate, UpdateRecipeRequest
+    from sqlalchemy import Select
+
+    from meals.schemas import (
+        CreateLabel,
+        CreateRecipeRequest,
+        CreateUserRequest,
+        LabelFilter,
+        PlannedDay,
+        TimingsCreate,
+        UpdateRecipeRequest,
+    )
 
 # Response models are serialised from these ORM objects after the query, so every
 # relationship they touch must already be loaded: an implicit async lazy load raises
 # MissingGreenlet (a 500). Keep these tuples complete and pass them to every query that
 # can return an object a response model will serialise.
 #
-# `RecipeResponse` serialises recipe.ingredients and each row's ingredient.
-RECIPE_LOAD_OPTIONS = (joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient),)
+# `RecipeResponse` serialises recipe.ingredients and each row's ingredient, plus
+# recipe.labels and each label's sub-category and category.
+RECIPE_LOAD_OPTIONS = (
+    joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient),
+    joinedload(StoredRecipe.labels).subqueryload(StoredRecipeLabel.sub_category).subqueryload(SubCategory.category),
+)
 # `PlannedDayResponse` serialises planned.recipe.
 PLANNED_DAY_LOAD_OPTIONS = (joinedload(StoredPlannedDay.recipe),)
+
+
+def _matching_recipe_pks(label_filter: LabelFilter) -> Select[int]:
+    """Build the subquery of recipe pks that satisfy a label filter.
+
+    A recipe needs at least one matching sub-category in every requested category, which
+    gives OR within a category and AND across categories.
+    """
+    pairs = [
+        (category, sub_category)
+        for category, sub_categories in label_filter.groups.items()
+        for sub_category in sub_categories
+    ]
+    return (
+        select(StoredRecipeLabel.recipe_pk)
+        .join(SubCategory, SubCategory.pk == StoredRecipeLabel.sub_category_pk)
+        .join(Category, Category.pk == SubCategory.category_pk)
+        .where(tuple_(Category.name, SubCategory.name).in_(pairs))
+        .group_by(StoredRecipeLabel.recipe_pk)
+        .having(func.count(distinct(Category.pk)) == label_filter.category_count)
+    )
 
 
 class UserRepository:
@@ -108,7 +146,62 @@ class RecipeRepository:
 
         self.session.add(stored_recipe)
         await self.session.flush()
-        return stored_recipe
+        label_pks = await self._resolve_label_pks(recipe_data.labels)
+        recipe_pk = stored_recipe.pk
+        for sub_category_pk in label_pks:
+            self.session.add(StoredRecipeLabel(recipe_pk=recipe_pk, sub_category_pk=sub_category_pk))
+        await self.session.flush()
+        self.session.expire(stored_recipe)
+        return t.cast("StoredRecipe", await self.get(recipe_pk, user_pk))
+
+    async def _resolve_label_pks(self, labels: list[CreateLabel]) -> set[int]:
+        """Upsert the requested labels and return their deduplicated sub-category pks."""
+        if not labels:
+            return set()
+
+        category_names = {label.category for label in labels}
+        categories = {
+            category.name: category
+            for category in (
+                await self.session.scalars(select(Category).where(Category.name.in_(category_names)))
+            ).all()
+        }
+        for category_name in category_names - categories.keys():
+            category = Category(name=category_name)
+            self.session.add(category)
+            categories[category_name] = category
+
+        sub_categories = {
+            (sub_category.category.name, sub_category.name): sub_category
+            for sub_category in (
+                await self.session.scalars(
+                    select(SubCategory)
+                    .join(SubCategory.category)
+                    .where(Category.name.in_(category_names))
+                    .options(joinedload(SubCategory.category))
+                )
+            ).all()
+        }
+        for label in labels:
+            key = (label.category, label.sub_category)
+            if key not in sub_categories:
+                sub_category = SubCategory(name=label.sub_category, category=categories[label.category])
+                self.session.add(sub_category)
+                sub_categories[key] = sub_category
+
+        await self.session.flush()
+        return {sub_categories[(label.category, label.sub_category)].pk for label in labels}
+
+    async def get_labels(self) -> list[SubCategory]:
+        """Get the full label taxonomy, sorted by category and sub-category."""
+        stmt = (
+            select(SubCategory)
+            .join(SubCategory.category)
+            .options(joinedload(SubCategory.category))
+            .order_by(Category.name, SubCategory.name)
+        )
+        stmt_result = await self.session.scalars(stmt)
+        return list(stmt_result.all())
 
     async def get(self, pk: int, user_pk: int) -> StoredRecipe | None:
         """Get the recipe by the primary key."""
@@ -127,14 +220,23 @@ class RecipeRepository:
 
         return recipe
 
-    async def get_all(self, user_pk: int, *, has_ingredients: bool = True) -> list[StoredRecipe]:
+    async def get_all(
+        self,
+        user_pk: int,
+        *,
+        has_ingredients: bool = True,
+        label_filter: LabelFilter | None = None,
+    ) -> list[StoredRecipe]:
         """Gets all the recipes.
 
         Args:
             user_pk: The primary key of the user the recipe belong to.
             has_ingredients: Whether to only get recipe that have some ingredients.
+            label_filter: Optional label filter to apply.
         """
         stmt = select(StoredRecipe).filter_by(user_pk=user_pk).options(*RECIPE_LOAD_OPTIONS).order_by(StoredRecipe.name)
+        if label_filter:
+            stmt = stmt.where(StoredRecipe.pk.in_(_matching_recipe_pks(label_filter)))
         stmt_result = await self.session.scalars(stmt)
 
         recipes = list(stmt_result.unique().fetchall())
@@ -185,8 +287,20 @@ class RecipeRepository:
             existing_recipe.ingredients.append(
                 RecipeIngredient(ingredient=ingredient, quantity=new_i.quantity, unit=new_i.unit)
             )
+
+        existing_labels = list(existing_recipe.labels)
+        recipe_pk = existing_recipe.pk
+        new_label_pks = await self._resolve_label_pks(recipe_data.labels)
+        existing_label_pks = {label.sub_category_pk for label in existing_labels}
+        for label in existing_labels:
+            if label.sub_category_pk not in new_label_pks:
+                await self.session.delete(label)
+        for sub_category_pk in new_label_pks - existing_label_pks:
+            self.session.add(StoredRecipeLabel(recipe_pk=recipe_pk, sub_category_pk=sub_category_pk))
+
         await self.session.flush()
-        return existing_recipe
+        self.session.expire(existing_recipe)
+        return t.cast("StoredRecipe", await self.get(recipe_pk, user_pk))
 
     async def is_like(self, snippet: str, user_pk: int) -> list[StoredRecipe]:
         """Gets any recipes that are like the snippet given."""
@@ -300,7 +414,9 @@ class PlanRepository:
         stmt_result = await self.session.scalars(stmt)
         return list(stmt_result.fetchall())
 
-    async def summarise(self, user_pk: int) -> list[tuple[str, int, date | None]]:
+    async def summarise(
+        self, user_pk: int, label_filter: LabelFilter | None = None
+    ) -> list[tuple[str, int, date | None]]:
         """Summarise meals that have already been eaten."""
         stmt = (
             select(
@@ -319,6 +435,8 @@ class PlanRepository:
             .group_by(StoredRecipe.name)
             .order_by(StoredRecipe.name)
         )
+        if label_filter:
+            stmt = stmt.where(StoredRecipe.pk.in_(_matching_recipe_pks(label_filter)))
 
         result = await self.session.execute(stmt)
 

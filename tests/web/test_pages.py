@@ -42,8 +42,12 @@ class TestViewAPI:
         response = await client.get("/")
 
         assert_page_shell(response)
-        assert 'hx-get="/recipe_list"' in response.text
+        assert 'id="recipe-panel"' in response.text
         assert 'hx-get="/recipes"' in response.text
+        assert 'hx-target="#recipe-panel"' in response.text
+        assert 'hx-trigger="change"' in response.text
+        assert "Add labels to your recipes to filter them" in response.text
+        assert 'hx-get="/recipe_list"' not in response.text
 
     async def test_get_new_recipe(self, client: AsyncClient):
         response = await client.get("/new.html")

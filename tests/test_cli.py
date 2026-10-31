@@ -1,5 +1,6 @@
 """Tests for the command-line helpers."""
 
+import json
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -73,6 +74,26 @@ async def test_seed_creates_recipes_and_timings(test_app, user_one, tmp_path):
     assert [step["description"] for step in timings_response.json()["steps"]] == ["Start", "Finish"]
 
 
+async def test_seed_creates_labelled_recipes_and_remains_idempotent(test_app, user_one, tmp_path):
+    recipes_path = tmp_path / "recipes.yaml"
+    recipes_path.write_text(RECIPES_YAML)
+    timings_path = tmp_path / "timings.yaml"
+    timings_path.write_text(TIMINGS_YAML)
+    recipes = populate_db_cli.load_recipes(recipes_path)
+    timings = populate_db_cli.load_timings(timings_path)
+
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test/api/v1") as client:
+        await populate_db_cli.seed(client, recipes, timings, user_one)
+        await populate_db_cli.seed(client, recipes, timings, user_one)
+
+        headers = user_one.auth_headers()
+        recipes_response = await client.get("/recipes", headers=headers)
+
+    assert len(recipes_response.json()) == 1
+    assert recipes_response.json()[0]["name"] == "Carrot Surprise"
+    assert recipes_response.json()[0]["labels"] == [{"category": "vegetable", "sub_category": "carrot"}]
+
+
 async def test_client_factories():
     async with populate_db_cli._client("http://test/api/v1") as client:  # noqa: SLF001 - the factory is the unit
         assert str(client.base_url) == "http://test/api/v1/"
@@ -84,9 +105,12 @@ async def test_client_factories():
 def test_seed_command(monkeypatch, seed_files):
     recipes_path, timings_path = seed_files
     requested: list[tuple[str, str]] = []
+    recipe_payloads: list[dict[str, object]] = []
 
     def handler(request: Request) -> Response:
         requested.append((request.method, request.url.path))
+        if request.url.path == "/api/v1/recipes":
+            recipe_payloads.append(json.loads(request.content))
         status_code = {
             "/api/v1/users": httpx.codes.CREATED,
             "/api/v1/recipes": httpx.codes.CREATED,
@@ -115,7 +139,8 @@ def test_seed_command(monkeypatch, seed_files):
     )
 
     assert result.exit_code == 0, result.output
-    assert "Labels are not supported by the API yet" in result.output
+    assert "Labels are not supported by the API yet" not in result.output
+    assert recipe_payloads[0]["labels"] == [{"category": "vegetable", "sub_category": "carrot"}]
     assert requested == [
         ("POST", "/api/v1/users"),
         ("POST", "/api/v1/recipes"),

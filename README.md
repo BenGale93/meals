@@ -4,10 +4,12 @@ A Python web app for managing the recipes you cook.
 
 ## Features
 
-A recipe view for editing existing recipes, and adding new recipes.
+A recipe view for editing existing recipes, and adding new recipes. Recipes can carry
+`category::sub_category` labels, edited with an autocomplete chip input, and the recipe list
+can be filtered by them.
 
 A meal planning view for planning the weeks meals, seeing what you've eaten
-recently/not so recently.
+recently/not so recently. Its recipe summary can also be filtered by label.
 
 A Roast timer view, for planning the timings of roast dinners.
 
@@ -90,9 +92,10 @@ uv run meals-plan "Beef Stew" 2026-10-26  # plan a meal by name
 They use the API at `http://127.0.0.1:8000/api/v1` and authenticate as `Ben`; pass
 `--base-url`/`--user-name` to change that. Seeding is repeatable: an existing user or recipe
 is reported and skipped, and the roast timings are upserted. `recipes.yaml` is not committed
-(it is gitignored), and any `labels` in it are reported and skipped until label support lands
-(TODO -> Features item 1). The database backup helper stays in `scripts/backup_db.py`
-(`just backup`) because it works directly on SQLite without a running server.
+(it is gitignored). Labels in it are created and linked when a recipe is first inserted;
+existing recipes are skipped, so re-seeding does not backfill labels onto them. The database
+backup helper stays in `scripts/backup_db.py` (`just backup`) because it works directly on
+SQLite without a running server.
 
 ## Deployment
 

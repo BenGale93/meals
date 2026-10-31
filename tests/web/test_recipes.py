@@ -1,14 +1,15 @@
+import re
 from typing import TYPE_CHECKING
 
 import pytest
 from pydantic import ValidationError
 from starlette import status
 
-from meals.schemas import CreateRecipeRequest
+from meals.schemas import CreateRecipeRequest, RecipeResponse
 from meals.services import RecipeService
-from meals.web.core import format_new_recipe_error
+from meals.web.core import clean_labels, format_new_recipe_error, safe_label_filter
 
-from .assertions import assert_page_shell
+from .assertions import assert_page_shell, label_checkbox
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -292,3 +293,228 @@ class TestNewRecipeAPI:
         check = await client.get("/api/v1/recipes/", params={"name": "Test"})
         pk = check.json().get("pk")
         assert pk is None
+
+    async def test_new_recipe_with_labels(self, client: AsyncClient):
+        response = await client.post(
+            "/new_recipe",
+            data={
+                "name": "Test",
+                "ingredients": ["Flour 2 cups"],
+                "instructions": "Test steps",
+                "labels": ["meat::beef", "time::quick"],
+            },
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "meat::beef" in response.text
+        assert "time::quick" in response.text
+
+        check = await client.get("/api/v1/recipes/", params={"name": "Test"})
+        assert [str(label) for label in RecipeResponse.model_validate(check.json()).labels] == [
+            "meat::beef",
+            "time::quick",
+        ]
+
+    async def test_new_recipe_malformed_label_error(self, client: AsyncClient):
+        response = await client.post(
+            "/new_recipe",
+            data={
+                "name": "Test",
+                "ingredients": ["Flour 2 cups"],
+                "instructions": "Test steps",
+                "labels": ["not-a-label"],
+            },
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "Error(s) adding recipe" in response.text
+        assert "Issue with label 1" in response.text
+        assert "Invalid label 'not-a-label'" in response.text
+
+
+class TestRecipeLabelUI:
+    async def test_recipe_cards_show_label_chips(self, client: AsyncClient, burger_recipe):
+        response = await client.post("/api/v1/recipes", json=burger_recipe.model_dump())
+        response.raise_for_status()
+        pk = response.json()["pk"]
+
+        response = await client.get(f"/recipe/{pk}")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "meat::beef" in response.text
+        assert "time::quick" in response.text
+
+    async def test_filter_bar_selects_labels_from_query(self, client: AsyncClient, burger_recipe, sausage_recipe):
+        for recipe in (burger_recipe, sausage_recipe):
+            response = await client.post("/api/v1/recipes", json=recipe.model_dump())
+            response.raise_for_status()
+
+        response = await client.get("/", params=[("labels", "meat::beef")])
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "meat" in response.text
+        assert "time" in response.text
+        assert "checked" in label_checkbox(response.text, "meat::beef")
+        assert "checked" not in label_checkbox(response.text, "meat::pork")
+        assert "Clear" in response.text
+        assert "md:grid-cols-2" in response.text
+        assert response.text.count("<details") == 2
+        assert response.text.count('open=""') == 1
+        assert "Active filters:" in response.text
+        assert "1 selected" in response.text
+        assert 'aria-label="Remove filter meat::beef"' in response.text
+
+    async def test_repeated_labels_use_or_within_and_across_categories(
+        self, client: AsyncClient, burger_recipe, sausage_recipe
+    ):
+        for recipe in (burger_recipe, sausage_recipe):
+            response = await client.post("/api/v1/recipes", json=recipe.model_dump())
+            response.raise_for_status()
+
+        response = await client.get(
+            "/",
+            params=[("labels", "meat::beef"), ("labels", "meat::pork")],
+        )
+        assert "Burger" in response.text
+        assert "Sausage Pasta" in response.text
+
+        response = await client.get(
+            "/",
+            params=[("labels", "meat::beef"), ("labels", "time::quick")],
+        )
+        assert "Burger" in response.text
+        assert "Sausage Pasta" not in response.text
+        assert 'hx-get="/recipes?labels=time%3A%3Aquick"' in response.text
+        assert 'hx-get="/recipes?labels=meat%3A%3Abeef"' in response.text
+
+    async def test_index_deep_link_filters_cards(self, client: AsyncClient, burger_recipe, sausage_recipe):
+        for recipe in (burger_recipe, sausage_recipe):
+            response = await client.post("/api/v1/recipes", json=recipe.model_dump())
+            response.raise_for_status()
+
+        response = await client.get("/", params=[("labels", "meat::beef")])
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "Burger" in response.text
+        assert "Sausage Pasta" not in response.text
+
+    async def test_recipes_fragment_filters_cards(self, client: AsyncClient, burger_recipe, sausage_recipe):
+        for recipe in (burger_recipe, sausage_recipe):
+            response = await client.post("/api/v1/recipes", json=recipe.model_dump())
+            response.raise_for_status()
+
+        response = await client.get("/recipes", params=[("labels", "meat::beef")])
+
+        assert response.status_code == status.HTTP_200_OK
+        assert 'id="recipe-panel"' in response.text
+        assert 'hx-get="/recipes"' in response.text
+        assert 'hx-target="#recipe-panel"' in response.text
+        assert 'hx-swap="outerHTML"' in response.text
+        assert 'hx-trigger="change"' in response.text
+        assert "hx-push-url" not in response.text
+        assert "Burger" in response.text
+        assert "Sausage Pasta" not in response.text
+        assert "checked" in label_checkbox(response.text, "meat::beef")
+
+    async def test_malformed_filter_falls_back_to_unfiltered(self, client: AsyncClient, burger_recipe, sausage_recipe):
+        for recipe in (burger_recipe, sausage_recipe):
+            response = await client.post("/api/v1/recipes", json=recipe.model_dump())
+            response.raise_for_status()
+
+        response = await client.get("/", params=[("labels", "not-a-label")])
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "Burger" in response.text
+        assert "Sausage Pasta" in response.text
+
+    async def test_label_editor_script_is_available_to_htmx_fragments(self, client: AsyncClient):
+        response = await client.get("/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "function labelEditor" in response.text
+        assert "newLabel: ''" in response.text
+
+    async def test_new_recipe_page_has_label_editor(self, client: AsyncClient, burger_recipe):
+        response = await client.post("/api/v1/recipes", json=burger_recipe.model_dump())
+        response.raise_for_status()
+
+        response = await client.get("/new.html")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "labelEditor([])" in response.text
+        assert 'list="label-options"' in response.text
+        assert 'id="label-options"' in response.text
+        assert '<option value="meat::beef"></option>' in response.text
+        assert 'name="labels"' in response.text
+        assert ':value="label"' in response.text
+        assert "addLabel()" in response.text
+        assert "removeLabel(label)" in response.text
+        assert 'placeholder="meat::beef"' in response.text
+
+    async def test_edit_form_shows_initial_labels(self, client: AsyncClient, burger_recipe):
+        response = await client.post("/api/v1/recipes", json=burger_recipe.model_dump())
+        response.raise_for_status()
+        pk = response.json()["pk"]
+
+        response = await client.get(f"/recipe/{pk}/edit")
+
+        assert response.status_code == status.HTTP_200_OK
+        initial_state = re.search(r"""x-data=["']labelEditor\((?P<labels>.*?)\)["']""", response.text)
+        assert initial_state is not None
+        assert "meat::beef" in initial_state["labels"]
+        assert "time::quick" in initial_state["labels"]
+        assert ':value="label"' in response.text
+
+    async def test_update_recipe_with_labels(self, client: AsyncClient, carrots_recipe):
+        response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        response.raise_for_status()
+        pk = response.json()["pk"]
+
+        response = await client.post(
+            f"/update_recipe/{pk}",
+            data={
+                "name": carrots_recipe.name,
+                "ingredients": ["Carrot 10 units"],
+                "instructions": carrots_recipe.instructions,
+                "labels": ["meat::beef"],
+            },
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "meat::beef" in response.text
+
+        check = await client.get(f"/api/v1/recipes/{pk}")
+        assert [str(label) for label in RecipeResponse.model_validate(check.json()).labels] == ["meat::beef"]
+
+        response = await client.post(
+            f"/update_recipe/{pk}",
+            data={
+                "name": carrots_recipe.name,
+                "ingredients": ["Carrot 10 units"],
+                "instructions": carrots_recipe.instructions,
+            },
+        )
+        response.raise_for_status()
+
+        check = await client.get(f"/api/v1/recipes/{pk}")
+        assert RecipeResponse.model_validate(check.json()).labels == []
+
+
+def test_format_new_recipe_error_for_a_label():
+    with pytest.raises(ValidationError) as exc_info:
+        CreateRecipeRequest.model_validate(
+            {"name": "Test", "ingredients": [], "instructions": "", "labels": ["not-a-label"]}
+        )
+
+    message = format_new_recipe_error(exc_info.value.errors()[0])
+
+    assert message.startswith("Issue with label 1:")
+
+
+def test_clean_labels_drops_blank_values():
+    assert clean_labels(["", "  ", "meat::beef"]) == ["meat::beef"]
+
+
+def test_safe_label_filter_falls_back_for_malformed_tokens():
+    assert not safe_label_filter(["not-a-label"])
+    assert safe_label_filter(["meat::beef"]).tokens == ("meat::beef",)

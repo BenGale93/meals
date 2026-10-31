@@ -9,20 +9,28 @@ from pydantic import ValidationError
 
 from meals.auth import CurrentUser  # noqa: TC001
 from meals.exceptions import RecipeAlreadyExistsError
-from meals.schemas import CreateRecipeRequest, RecipeResponse
+from meals.schemas import CreateRecipeRequest, Labels, RecipeResponse
 from meals.services import RecipeServiceDep  # noqa: TC001
 from meals.web.core import (
     NEW_RECIPE_PAGE,
     PageRegistry,
     clean_ingredients,
+    clean_labels,
     format_new_recipe_error,
     htmy_renderer,
+    label_editor,
     page,
     recipe_section,
     router,
 )
 
 logger = logging.getLogger(__name__)
+
+
+class NewRecipePage(t.NamedTuple):
+    """The data rendered by the new recipe page."""
+
+    labels: Labels
 
 
 def new_recipe_error(error: Exception) -> ComponentType:
@@ -116,7 +124,7 @@ def save_recipe() -> ComponentType:
     )
 
 
-def new_recipe_form() -> ComponentType:
+def new_recipe_form(labels: Labels) -> ComponentType:
     """Form for submitting a new recipe."""
     return html.form(
         recipe_name(),
@@ -127,24 +135,25 @@ def new_recipe_form() -> ComponentType:
                 **{"x-for": "(ingredient, index) in ingredients", ":key": "index"},
             ),
             add_ingredient(),
-            instructions_input(),
-            save_recipe(),
+            **{"x-data": "{ ingredients: [''] }"},
         ),
+        label_editor([], labels),
+        instructions_input(),
+        save_recipe(),
         hx_post="/new_recipe",
         hx_target="#form-result",
         hx_swap="innerHTML",
         class_="space-y-6",
-        x_data="{ ingredients: [''] }",
     )
 
 
 @PageRegistry.register(NEW_RECIPE_PAGE)
-def new_recipe_page(_: t.Any) -> Component:
+def new_recipe_page(page_data: NewRecipePage) -> Component:
     """The HTML of the page for creating new recipes."""
     return page(
         html.main(
             html.h1("Create a New Recipe", class_="text-2xl font-bold text-green-700 mb-6"),
-            new_recipe_form(),
+            new_recipe_form(page_data.labels),
             html.div(id="form-result", class_="mt-6"),
             class_="max-w-3xl mx-auto p-6 mt-8 bg-white shadow-md rounded-2xl",
         )
@@ -153,22 +162,29 @@ def new_recipe_page(_: t.Any) -> Component:
 
 @router.get(NEW_RECIPE_PAGE.path)
 @htmy_renderer.page(new_recipe_page)
-async def new(_: CurrentUser) -> None:
+async def new(service: RecipeServiceDep, _: CurrentUser) -> NewRecipePage:
     """The new page of the application."""
+    return NewRecipePage(labels=await service.labels())
 
 
 @router.post("/new_recipe", response_model=None)
 @htmy_renderer.page(recipe_section, error_component_selector=new_recipe_error)
-async def new_recipe(
+async def new_recipe(  # noqa: PLR0913, PLR0917
     service: RecipeServiceDep,
     user: CurrentUser,
     ingredients: t.Annotated[list[str], Form(default_factory=list)],
+    labels: t.Annotated[list[str], Form(default_factory=list)],
     name: t.Annotated[str, Form()] = "",
     instructions: t.Annotated[str, Form()] = "",
 ) -> RecipeResponse:
     """Create a new recipe using a form."""
     recipe_data = CreateRecipeRequest.model_validate(
-        {"name": name, "ingredients": clean_ingredients(ingredients), "instructions": instructions}
+        {
+            "name": name,
+            "ingredients": clean_ingredients(ingredients),
+            "instructions": instructions,
+            "labels": clean_labels(labels),
+        }
     )
 
     return await service.create(recipe_data, user.pk)

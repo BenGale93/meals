@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import time_machine
 from starlette import status
 
-from .assertions import assert_meal_options, assert_page_shell, assert_summary_rows
+from .assertions import assert_meal_options, assert_page_shell, assert_summary_rows, label_checkbox
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -100,6 +100,56 @@ class TestPlannerAPI:
 
         assert response.status_code == status.HTTP_200_OK
         assert_summary_rows(response, [])
+        assert "Add labels to your recipes to filter them" in response.text
+
+    async def test_get_summary_table_filter_control(self, client: AsyncClient, burger_recipe, sausage_recipe):
+        for recipe in (burger_recipe, sausage_recipe):
+            response = await client.post("/api/v1/recipes", json=recipe.model_dump())
+            response.raise_for_status()
+
+        response = await client.get("/summary")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert 'hx-get="/summary"' in response.text
+        assert 'hx-target="#recipe-summary"' in response.text
+        assert 'hx-swap="outerHTML"' in response.text
+        assert 'hx-trigger="change"' in response.text
+        assert 'name="labels"' in response.text
+        assert "Clear" in response.text
+        assert 'hx-include="closest form"' in response.text
+        assert "checked" not in label_checkbox(response.text, "meat::beef")
+        assert "Active filters:" not in response.text
+        assert 'open=""' not in response.text
+
+    async def test_get_summary_table_filters_rows(self, client: AsyncClient, burger_recipe, sausage_recipe):
+        for recipe in (burger_recipe, sausage_recipe):
+            response = await client.post("/api/v1/recipes", json=recipe.model_dump())
+            response.raise_for_status()
+
+        response = await client.get("/summary", params=[("labels", "meat::beef")])
+
+        assert response.status_code == status.HTTP_200_OK
+        assert_summary_rows(response, [(burger_recipe.name, 0, "Never")])
+        assert "checked" in label_checkbox(response.text, "meat::beef")
+        assert "checked" not in label_checkbox(response.text, "meat::pork")
+        assert "Active filters:" in response.text
+        assert 'aria-label="Remove filter meat::beef"' in response.text
+
+    async def test_summary_malformed_filter_falls_back(self, client: AsyncClient, burger_recipe, sausage_recipe):
+        for recipe in (burger_recipe, sausage_recipe):
+            response = await client.post("/api/v1/recipes", json=recipe.model_dump())
+            response.raise_for_status()
+
+        response = await client.get("/summary", params=[("labels", "not-a-label")])
+
+        assert response.status_code == status.HTTP_200_OK
+        assert_summary_rows(
+            response,
+            [
+                (burger_recipe.name, 0, "Never"),
+                (sausage_recipe.name, 0, "Never"),
+            ],
+        )
 
     @time_machine.travel(date(2020, 1, 1))
     async def test_get_summary_table_with_recipe(self, client: AsyncClient, carrots_recipe):

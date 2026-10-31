@@ -480,8 +480,8 @@ errors that returns a clean response, and request IDs.
 transitively through `fastapi[standard]`. `meals-seed` now seeds both files: it creates the
 user if needed, posts the recipes (skipping existing ones so re-running is safe), and sends
 the roast timings via `PATCH /timings` (an upsert). `timings.yaml` uses the schema's
-`finish_time`/`description` keys. `recipes.yaml` labels are now validated and reported as
-skipped, rather than silently dropped, until Features item 1 adds label storage. Tests in
+`finish_time`/`description` keys. `recipes.yaml` labels are validated and sent with newly
+created recipes; existing recipes are skipped, so re-seeding does not backfill labels. Tests in
 `tests/test_cli.py` drive both commands (and the seeding path against the ASGI app), keeping
 the new package modules at 100% coverage. The `pydantic-yaml` warning noted below is already
 gone with the current pydantic/FastAPI versions (see Admin item 9), so no change was needed
@@ -831,15 +831,16 @@ the timings Alpine/JS behaviour, which is currently untested.
 New capability, taken up **after** the remaining Bugs and Arch items at the same priority
 (see the note under "Priorities" above).
 
-### 1. Recipe labels and planner filtering — P1
+### 1. Recipe labels and filtering — P1 (done)
 
-`PLAN.md` describes labels like `carb::pasta`, `meat::chicken`, `time::quick`, and
-`toddler::approved` that can filter the planner table, and `recipes.yaml` already contains
-`labels: [{category: meat, sub_category: beef}, ...]`. Build the end-to-end feature:
-persist labels, expose them on create/update/response schemas and the API, display/edit
-them in the recipe and new-recipe forms, show them on recipe cards, and let the planner
-filter candidate meals by label. Reuse the `feat/labels` branch (Repo Admin item 8) where
-possible instead of starting over.
+**Done:** recipes now store labels in normalised `categories`, `sub_categories`, and
+`recipe_labels` tables. Create, update, and response payloads include labels; the new/edit
+forms use an autocomplete chip input; labels render on recipe cards; the recipe list and
+summary table can be filtered from the UI and by repeated `labels` query parameters;
+`GET /api/v1/labels` exposes the taxonomy; and `meals-seed` sends labels from `recipes.yaml`.
+Multi-label filters use OR within a category and AND across categories. Filtering the
+planner's meal picker and planned-week table remains future work (see `PLAN.md`, "Later
+planner work").
 
 ### 2. Additional (non-recipe) meals — P1
 
