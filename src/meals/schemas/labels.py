@@ -76,6 +76,15 @@ class CreateLabel(BaseModel):
     category: str
     sub_category: str
 
+    @model_validator(mode="before")
+    @classmethod
+    def from_token(cls, data: t.Any) -> t.Any:
+        """Parse the canonical ``category::sub_category`` form used by web forms."""
+        if not isinstance(data, str):
+            return data
+        category, sub_category = parse_label(data)
+        return {"category": category, "sub_category": sub_category}
+
     @field_validator("category", "sub_category", mode="before")
     @classmethod
     def normalise(cls, value: t.Any) -> t.Any:

@@ -33,6 +33,16 @@ def assert_meal_options(response: Response, expected: list[str]) -> None:
         assert f'<option value="{meal}"></option>' in response.text
 
 
+def label_checkbox(text: str, value: str) -> str:
+    """Return the rendered checkbox with the given label value."""
+    for match in re.finditer(r"<input[^>]*>", text):
+        tag = match.group(0)
+        if 'name="labels"' in tag and f'value="{value}"' in tag:
+            return tag
+    msg = f"No label checkbox for {value!r}"
+    raise AssertionError(msg)
+
+
 def assert_summary_rows(response: Response, expected: list[tuple[str, int, str]]) -> None:
     """Assert the parsed rows of the recipe summary table."""
     assert response.status_code == status.HTTP_200_OK

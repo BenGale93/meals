@@ -91,6 +91,17 @@ def test_create_label_normalises_both_parts():
     assert (label.category, label.sub_category) == ("meat", "ground-beef")
 
 
+def test_create_label_accepts_a_canonical_token():
+    label = CreateLabel.model_validate(" Meat :: Ground Beef ")
+
+    assert (label.category, label.sub_category) == ("meat", "ground-beef")
+
+
+def test_create_label_rejects_a_malformed_token():
+    with pytest.raises(ValidationError, match="Invalid label 'not-a-label'"):
+        CreateLabel.model_validate("not-a-label")
+
+
 def test_create_label_rejects_non_string_parts():
     with pytest.raises(ValidationError):
         CreateLabel.model_validate({"category": 1, "sub_category": "beef"})

@@ -401,7 +401,7 @@ gate.
 - [x] **M2 — Repository, services, API.** Label upsert/diff, shared matching-pk subquery,
       filtered `get_all` and `summarise`, `RecipeService.list/labels`, `PlanService.summary`,
       `GET /api/v1/labels`, query params on the list and summary endpoints.
-- [ ] **M3 — Web UI.** Label chips, chip editor with autocomplete, recipe-list filter panel,
+- [x] **M3 — Web UI.** Label chips, chip editor with autocomplete, recipe-list filter panel,
       summary filter, error formatting, `/recipe_list` retirement.
 - [ ] **M4 — Seeding.** Send labels from `recipes.yaml`, drop the skip warning, keep
       idempotence.

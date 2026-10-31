@@ -1,15 +1,19 @@
 """Core web components and pages."""
 
+import json
 import typing as t
+from urllib.parse import urlencode
 
 from fastapi import APIRouter
 from fasthx.htmy import HTMY
 from htmy import Component, ComponentType, SafeStr, html
 
+from meals.schemas import LabelFilter
+
 if t.TYPE_CHECKING:
     from pydantic_core import ErrorDetails
 
-    from meals.schemas import IngredientResponse, RecipeResponse
+    from meals.schemas import IngredientResponse, LabelResponse, Labels, RecipeResponse
 
 
 def format_new_recipe_error(error: ErrorDetails) -> str:
@@ -20,6 +24,9 @@ def format_new_recipe_error(error: ErrorDetails) -> str:
         case ("ingredients", number, *_) if isinstance(number, int):
             number = number + 1
             return f"Issue with ingredient {number}: {msg}"
+        case ("labels", number, *_) if isinstance(number, int):
+            number = number + 1
+            return f"Issue with label {number}: {msg}"
         case ():
             return msg
         case _:
@@ -29,6 +36,229 @@ def format_new_recipe_error(error: ErrorDetails) -> str:
 def clean_ingredients(ingredients: list[str]) -> list[str]:
     """Drop blank ingredient inputs submitted by a form."""
     return [ingredient for ingredient in ingredients if ingredient]
+
+
+def clean_labels(labels: list[str]) -> list[str]:
+    """Drop blank label inputs submitted by a form."""
+    return [label for label in labels if label.strip()]
+
+
+def safe_label_filter(labels: list[str]) -> LabelFilter:
+    """Parse filter labels, falling back to no filter for malformed deep links."""
+    try:
+        return LabelFilter(clean_labels(labels))
+    except ValueError:
+        return LabelFilter()
+
+
+def label_chips(labels: list[LabelResponse]) -> ComponentType:
+    """The label chips shown on a recipe card."""
+    return html.div(
+        *[
+            html.span(
+                str(label),
+                class_="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 "
+                "text-xs font-medium text-green-800",
+            )
+            for label in labels
+        ],
+        class_="mb-4 flex flex-wrap gap-2",
+    )
+
+
+def label_filter_chip(label: LabelResponse, selected: LabelFilter) -> ComponentType:
+    """A checkbox for one label in a filter bar."""
+    token = str(label)
+    attributes: dict[str, t.Any] = {"type": "checkbox", "name": "labels", "value": token}
+    if token in selected:
+        attributes["checked"] = ""
+
+    return html.label(
+        html.input_(**attributes),
+        html.span(label.sub_category),
+        class_="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-green-200 "
+        "bg-green-50 px-3 py-1 text-sm text-green-800",
+    )
+
+
+def filter_url(endpoint: str, tokens: t.Iterable[str]) -> str:
+    """Build a filter URL for the given endpoint and label tokens."""
+    query = urlencode([("labels", token) for token in tokens])
+    return f"{endpoint}?{query}" if query else endpoint
+
+
+def selected_filter_chip(token: str, remaining: tuple[str, ...], *, endpoint: str, target: str) -> ComponentType:
+    """A removable chip for one active filter."""
+    return html.span(
+        html.span(token),
+        html.button(
+            "×",  # noqa: RUF001
+            type="button",
+            hx_get=filter_url(endpoint, remaining),
+            hx_target=target,
+            hx_swap="outerHTML",
+            **{"aria-label": f"Remove filter {token}"},
+            class_="ml-1 font-bold text-green-700 hover:text-red-600",
+        ),
+        class_="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs text-green-800",
+    )
+
+
+def active_filter_summary(selected: LabelFilter, *, endpoint: str, target: str) -> ComponentType:
+    """The removable chips summarizing the active filters."""
+    tokens = selected.tokens
+    return html.div(
+        html.span("Active filters:", class_="text-xs font-semibold uppercase tracking-wide text-gray-500"),
+        *[
+            selected_filter_chip(
+                token,
+                tuple(other for other in tokens if other != token),
+                endpoint=endpoint,
+                target=target,
+            )
+            for token in tokens
+        ],
+        class_="flex flex-wrap items-center gap-2",
+    )
+
+
+def label_filter_category(category: str, labels: list[LabelResponse], selected: LabelFilter) -> ComponentType:
+    """One collapsible category of label checkboxes."""
+    selected_count = len(selected.groups.get(category, frozenset()))
+    summary_children: list[ComponentType] = [html.span(category, class_="font-semibold text-gray-700")]
+    if selected_count:
+        summary_children.append(
+            html.span(
+                f"{selected_count} selected",
+                class_="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700",
+            )
+        )
+
+    return html.details(
+        html.summary(*summary_children, class_="flex cursor-pointer items-center justify-between gap-2"),
+        html.div(
+            *[label_filter_chip(label, selected) for label in labels],
+            class_="mt-3 flex flex-wrap gap-2",
+        ),
+        class_="rounded-xl border border-green-100 bg-green-50/50 p-3",
+        **({"open": ""} if selected_count else {}),
+    )
+
+
+def label_filter_controls(labels: Labels, selected: LabelFilter, *, endpoint: str, target: str) -> ComponentType:
+    """The collapsible, grouped label checkboxes used by the recipe and summary filters."""
+    parts: list[ComponentType] = []
+    if selected:
+        parts.append(active_filter_summary(selected, endpoint=endpoint, target=target))
+
+    if not labels.root:
+        parts.append(html.p("Add labels to your recipes to filter them", class_="text-sm italic text-gray-500"))
+    else:
+        grouped: dict[str, list[LabelResponse]] = {}
+        for label in labels:
+            grouped.setdefault(label.category, []).append(label)
+        parts.append(
+            html.div(
+                *[label_filter_category(category, group, selected) for category, group in grouped.items()],
+                class_="grid gap-3 md:grid-cols-2 lg:grid-cols-3",
+            )
+        )
+
+    return html.div(*parts, class_="space-y-3")
+
+
+def clear_filter_button(endpoint: str, target: str) -> ComponentType:
+    """A button that resets the filter by requesting the unfiltered fragment."""
+    return html.button(
+        "Clear",
+        type="button",
+        hx_get=endpoint,
+        hx_target=target,
+        hx_swap="outerHTML",
+        class_="rounded-lg bg-green-100 px-3 py-1 text-green-700 hover:bg-green-200 transition",
+    )
+
+
+def label_filter_form(labels: Labels, selected: LabelFilter, *, endpoint: str, target: str) -> ComponentType:
+    """A change-triggered form containing the label filter controls."""
+    return html.form(
+        label_filter_controls(labels, selected, endpoint=endpoint, target=target),
+        clear_filter_button(endpoint, target),
+        hx_get=endpoint,
+        hx_target=target,
+        hx_swap="outerHTML",
+        hx_trigger="change",
+        class_="mb-6 rounded-2xl bg-white p-4 shadow-sm",
+    )
+
+
+LABEL_SCRIPT = html.script(
+    SafeStr(r"""
+function labelEditor(initial) {
+    return {
+        labels: initial,
+        newLabel: '',
+        addLabel() {
+            const label = this.newLabel.trim().toLowerCase().replace(/\s+/g, '-');
+            if (!label || this.labels.includes(label)) return;
+            this.labels.push(label);
+            this.newLabel = '';
+        },
+        removeLabel(label) {
+            this.labels = this.labels.filter(item => item !== label);
+        }
+    }
+}
+""")
+)
+
+
+def label_editor(initial_labels: list[str], options: Labels) -> ComponentType:
+    """The chip editor used by the new and edit recipe forms."""
+    return html.div(
+        html.label("Labels", class_="block font-semibold mb-1"),
+        html.div(
+            html.input_(
+                **{
+                    "type": "text",
+                    "x-model": "newLabel",
+                    "list": "label-options",
+                    "@keydown.enter.prevent": "addLabel()",
+                    "placeholder": "meat::beef",
+                },
+                class_="flex-1 rounded-lg border border-gray-300 p-3 focus:ring-2 focus:ring-green-500 "
+                "focus:outline-none",
+            ),
+            html.button(
+                "Add label",
+                **{"type": "button", "@click": "addLabel()"},
+                class_="rounded-lg bg-green-100 px-3 py-2 text-green-700 hover:bg-green-200 transition",
+            ),
+            class_="flex items-center space-x-2",
+        ),
+        html.div(
+            html.template(
+                html.span(
+                    html.span(**{"x-text": "label"}),
+                    html.button(
+                        "×",  # noqa: RUF001
+                        **{"type": "button", "@click": "removeLabel(label)"},
+                        class_="font-bold text-red-500 hover:text-red-700",
+                    ),
+                    html.input_(**{"type": "hidden", "name": "labels", ":value": "label"}),
+                    class_="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-sm text-green-800",
+                ),
+                **{"x-for": "label in labels", ":key": "label"},
+            ),
+            class_="mt-3 flex flex-wrap gap-2",
+        ),
+        html.datalist(
+            *[html.option(value=str(label)) for label in options],
+            id="label-options",
+        ),
+        x_data=f"labelEditor({json.dumps(initial_labels)})",
+        class_="space-y-2",
+    )
 
 
 router = APIRouter()
@@ -169,6 +399,8 @@ def page(content: ComponentType) -> Component:
                 html.script(src="https://unpkg.com/htmx.org@2.0.2/dist/htmx.min.js"),
                 # Alpine
                 html.script(src="https://unpkg.com/alpinejs@3.17.5/dist/cdn.min.js", defer=""),
+                # Shared Alpine components available to HTMX-loaded fragments.
+                LABEL_SCRIPT,
             ),
             html.body(
                 html.header(
@@ -204,11 +436,15 @@ def ingredient_div(ingredient: IngredientResponse) -> ComponentType:
 
 
 def _common_recipe(recipe: RecipeResponse) -> tuple[list[ComponentType], dict[str, t.Any]]:
-    core_components: list[ComponentType] = [
-        html.h2(recipe.name, class_="text-2xl font-bold text-green-700 mb-3"),
-        html.ul(*[html.li(ingredient_div(i)) for i in recipe.ingredients], class_="list-disc ml-5 mb-4"),
-        html.p(recipe.instructions, style="white-space:pre-line;", class_="pb-3"),
-    ]
+    core_components: list[ComponentType] = [html.h2(recipe.name, class_="text-2xl font-bold text-green-700 mb-3")]
+    if recipe.labels:
+        core_components.append(label_chips(recipe.labels))
+    core_components.extend(
+        [
+            html.ul(*[html.li(ingredient_div(i)) for i in recipe.ingredients], class_="list-disc ml-5 mb-4"),
+            html.p(recipe.instructions, style="white-space:pre-line;", class_="pb-3"),
+        ]
+    )
     properties: dict[str, t.Any] = {
         "class_": "bg-white rounded-2xl shadow-md p-6",
         "id": recipe.anchor,

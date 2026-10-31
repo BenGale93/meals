@@ -3,13 +3,22 @@
 import typing as t
 from datetime import date  # noqa: TC003
 
-from fastapi import Form, Response
+from fastapi import Form, Query, Response
 from htmy import Component, ComponentType, html
 
 from meals.auth import CurrentUser  # noqa: TC001
-from meals.schemas import PlannedDays, RecipeSummary  # noqa: TC001
+from meals.schemas import LabelFilter, Labels, PlannedDays, RecipeSummary  # noqa: TC001
 from meals.services import PlanServiceDep, RecipeServiceDep  # noqa: TC001
-from meals.web.core import PLANNER_PAGE, PageRegistry, htmy_renderer, page, router
+from meals.web.core import (
+    PLANNER_PAGE,
+    PageRegistry,
+    clear_filter_button,
+    htmy_renderer,
+    label_filter_controls,
+    page,
+    router,
+    safe_label_filter,
+)
 
 PLANNER_SCRIPT = html.script("""
 function checkUserKeydown(event) {
@@ -110,10 +119,18 @@ def meal_options(meal_names: list[str]) -> ComponentType:
     return html.datalist(*[html.option(value=m) for m in meal_names])
 
 
-def summary_table(summaries: list[RecipeSummary]) -> ComponentType:
-    """The summary table for the meals."""
+class SummaryPanel(t.NamedTuple):
+    """The data rendered by the recipe summary panel."""
+
+    summaries: list[RecipeSummary]
+    labels: Labels
+    selected: LabelFilter
+
+
+def summary_table(panel: SummaryPanel) -> ComponentType:
+    """The filterable summary table for the meals."""
     table_rows = []
-    for summary in summaries:
+    for summary in panel.summaries:
         last_eaten = summary.last_eaten.strftime("%Y-%m-%d") if summary.last_eaten else "Never"
         table_rows.append(
             html.tr(
@@ -124,19 +141,22 @@ def summary_table(summaries: list[RecipeSummary]) -> ComponentType:
             )
         )
 
-    return html.section(
+    return html.form(
         html.div(
             html.h2("Recipe Summary", class_="text-xl font-semibold text-gray-800 mb-4"),
             html.button(
                 "Refresh",
-                type="submit",
-                class_="px-3 py-1 mb-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition",
+                type="button",
                 hx_get="/summary",
-                hx_swap="outerHTML",
                 hx_target="#recipe-summary",
+                hx_swap="outerHTML",
+                hx_include="closest form",
+                class_="px-3 py-1 mb-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition",
             ),
             class_="flex justify-between",
         ),
+        label_filter_controls(panel.labels, panel.selected, endpoint="/summary", target="#recipe-summary"),
+        clear_filter_button("/summary", "#recipe-summary"),
         html.table(
             html.thead(
                 html.tr(
@@ -149,6 +169,10 @@ def summary_table(summaries: list[RecipeSummary]) -> ComponentType:
             html.tbody(*table_rows, class_="divide-y divide-gray-200"),
             class_="min-w-full bg-white border border-gray-300 rounded-lg shadow-sm",
         ),
+        hx_get="/summary",
+        hx_swap="outerHTML",
+        hx_target="#recipe-summary",
+        hx_trigger="change",
         class_="max-w-3xl mx-auto mt-6 p-4",
         id="recipe-summary",
     )
@@ -208,6 +232,16 @@ async def update_planned_day(
 
 @router.get("/summary", response_model=None)
 @htmy_renderer.page(summary_table)
-async def get_summary_table(service: PlanServiceDep, user: CurrentUser) -> list[RecipeSummary]:
-    """Gets the summary table of the recipes."""
-    return await service.summary(user.pk)
+async def get_summary_table(
+    service: PlanServiceDep,
+    recipe_service: RecipeServiceDep,
+    user: CurrentUser,
+    labels: t.Annotated[list[str], Query(default_factory=list)],
+) -> SummaryPanel:
+    """Gets the filtered summary table of the recipes."""
+    selected = safe_label_filter(labels)
+    return SummaryPanel(
+        summaries=await service.summary(user.pk, label_filter=selected),
+        labels=await recipe_service.labels(),
+        selected=selected,
+    )

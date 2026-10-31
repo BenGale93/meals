@@ -2,24 +2,63 @@
 
 import typing as t
 
-from fastapi import Form, HTTPException, status
+from fastapi import Form, HTTPException, Query, status
 from htmy import Component, ComponentType, html
 from pydantic import ValidationError
 
 from meals.auth import CurrentUser  # noqa: TC001
 from meals.exceptions import RecipeDoesNotExistError
-from meals.schemas import IngredientResponse, RecipeResponse, Recipes, UpdateRecipeRequest
+from meals.schemas import (
+    IngredientResponse,
+    LabelFilter,
+    Labels,
+    RecipeResponse,
+    Recipes,
+    UpdateRecipeRequest,
+)
 from meals.services import RecipeServiceDep  # noqa: TC001
 from meals.web.core import (
     RECIPES_PAGE,
     PageRegistry,
     clean_ingredients,
+    clean_labels,
     editable_recipe_section,
     format_new_recipe_error,
     htmy_renderer,
+    label_editor,
+    label_filter_form,
     page,
     router,
+    safe_label_filter,
 )
+
+if t.TYPE_CHECKING:
+    from meals.services import RecipeService
+
+
+class RecipePanel(t.NamedTuple):
+    """The data rendered by the recipes panel."""
+
+    recipes: Recipes
+    labels: Labels
+    selected: LabelFilter
+
+
+class RecipeEditPage(t.NamedTuple):
+    """The data rendered by the recipe edit page."""
+
+    recipe: RecipeResponse
+    labels: Labels
+
+
+async def build_recipe_panel(service: RecipeService, user_pk: int, labels: list[str]) -> RecipePanel:
+    """Load the filtered recipes and the taxonomy for the recipe panel."""
+    selected = safe_label_filter(labels)
+    return RecipePanel(
+        recipes=await service.list(user_pk, label_filter=selected),
+        labels=await service.labels(),
+        selected=selected,
+    )
 
 
 def recipes_div(recipes: Recipes) -> ComponentType:
@@ -125,8 +164,9 @@ def edit_instructions_input(current_instructions: str) -> ComponentType:
     )
 
 
-def edit_recipe_div(recipe: RecipeResponse) -> ComponentType:
+def edit_recipe_div(page_data: RecipeEditPage) -> ComponentType:
     """Component for editing recipes."""
+    recipe = page_data.recipe
     ingredient_data = [str(i) for i in recipe.ingredients]
     return html.form(
         edit_recipe_name(recipe.name),
@@ -144,6 +184,7 @@ def edit_recipe_div(recipe: RecipeResponse) -> ComponentType:
                 "x-data": f"{{ingredients: {ingredient_data} }}",
             },
         ),
+        label_editor([str(label) for label in recipe.labels], page_data.labels),
         edit_instructions_input(recipe.instructions),
         html.button(
             "Submit",
@@ -162,28 +203,42 @@ def edit_recipe_div(recipe: RecipeResponse) -> ComponentType:
     )
 
 
-@PageRegistry.register(RECIPES_PAGE)
-def index_page(_: t.Any) -> Component:
-    """The HTML of the index page of the app."""
-    return page(
-        html.div(
-            html.div(hx_get="/recipe_list", hx_trigger="load", hx_swap="outerHTML"),
-            html.div(hx_get="/recipes", hx_trigger="load", hx_swap="outerHTML"),
-        )
+def recipe_panel(panel: RecipePanel) -> ComponentType:
+    """The filterable recipe panel."""
+    return html.div(
+        label_filter_form(panel.labels, panel.selected, endpoint="/recipes", target="#recipe-panel"),
+        recipe_names(panel.recipes),
+        recipes_div(panel.recipes),
+        id="recipe-panel",
     )
+
+
+@PageRegistry.register(RECIPES_PAGE)
+def index_page(panel: RecipePanel) -> Component:
+    """The HTML of the index page of the app."""
+    return page(recipe_panel(panel))
 
 
 @router.get(RECIPES_PAGE.path)
 @htmy_renderer.page(index_page)
-async def index(_: CurrentUser) -> None:
+async def index(
+    service: RecipeServiceDep,
+    user: CurrentUser,
+    labels: t.Annotated[list[str], Query(default_factory=list)],
+) -> RecipePanel:
     """The index page of the application."""
+    return await build_recipe_panel(service, user.pk, labels)
 
 
 @router.get("/recipes")
-@htmy_renderer.page(recipes_div)
-async def get_recipes(service: RecipeServiceDep, user: CurrentUser) -> Recipes:
-    """Get the recipes as HTML."""
-    return await service.list(user.pk)
+@htmy_renderer.page(recipe_panel)
+async def get_recipes(
+    service: RecipeServiceDep,
+    user: CurrentUser,
+    labels: t.Annotated[list[str], Query(default_factory=list)],
+) -> RecipePanel:
+    """Get the filtered recipes panel as HTML."""
+    return await build_recipe_panel(service, user.pk, labels)
 
 
 @router.get("/recipe_list")
@@ -200,12 +255,19 @@ async def update_recipe(  # noqa: PLR0913, PLR0917
     service: RecipeServiceDep,
     user: CurrentUser,
     ingredients: t.Annotated[list[str], Form()],
+    labels: t.Annotated[list[str], Form(default_factory=list)],
     name: t.Annotated[str, Form()] = "",
     instructions: t.Annotated[str, Form()] = "",
 ) -> RecipeResponse:
     """Create a new recipe using a form."""
     recipe_data = UpdateRecipeRequest.model_validate(
-        {"pk": pk, "name": name, "ingredients": clean_ingredients(ingredients), "instructions": instructions}
+        {
+            "pk": pk,
+            "name": name,
+            "ingredients": clean_ingredients(ingredients),
+            "instructions": instructions,
+            "labels": clean_labels(labels),
+        }
     )
 
     return await service.update(recipe_data, user.pk)
@@ -213,12 +275,14 @@ async def update_recipe(  # noqa: PLR0913, PLR0917
 
 @router.get("/recipe/{pk}/edit", response_model=None)
 @htmy_renderer.page(edit_recipe_div)
-async def edit_recipe(pk: int, service: RecipeServiceDep, user: CurrentUser) -> RecipeResponse:
-    """Create a new recipe using a form."""
+async def edit_recipe(pk: int, service: RecipeServiceDep, user: CurrentUser) -> RecipeEditPage:
+    """Render the edit form for a recipe."""
     try:
-        return await service.get(pk, user.pk)
+        recipe = await service.get(pk, user.pk)
     except RecipeDoesNotExistError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message) from None
+
+    return RecipeEditPage(recipe=recipe, labels=await service.labels())
 
 
 @router.get("/recipe/{pk}", response_model=None)
