@@ -6,7 +6,7 @@ from typing import Annotated
 
 import httpx
 import typer
-from pydantic import Field, RootModel
+from pydantic import RootModel
 from pydantic_yaml import parse_yaml_file_as
 from rich import print as echo
 
@@ -21,12 +21,10 @@ app = typer.Typer()
 class SeedRecipe(CreateRecipeRequest):
     """A recipe from the seed file.
 
-    ``labels`` is recognised here so the seed file is validated rather than silently
-    truncated. The API cannot store labels yet (TODO -> Features item 1), so they are
-    reported and skipped instead of being sent.
+    Labels are inherited from :class:`CreateRecipeRequest` and validated, but the API
+    cannot store them yet (TODO -> Features item 1), so they are reported and skipped
+    instead of being sent.
     """
-
-    labels: list[dict[str, str]] = Field(default_factory=list)
 
 
 class SeedRecipes(RootModel[list[SeedRecipe]]):

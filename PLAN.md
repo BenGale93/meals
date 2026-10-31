@@ -395,7 +395,7 @@ gate.
 
 ### Task breakdown
 
-- [ ] **M1 — Schema and storage.** `schemas/labels.py`, request/response fields, normalising
+- [x] **M1 — Schema and storage.** `schemas/labels.py`, request/response fields, normalising
       validators, `constants.py`, models, `RECIPE_LOAD_OPTIONS`, migration, dev-DB reset.
       Add `meals.constants` to the core side of the import-linter contract for consistency.
 - [ ] **M2 — Repository, services, API.** Label upsert/diff, shared matching-pk subquery,

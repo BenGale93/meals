@@ -11,6 +11,8 @@ from fractions import Fraction
 
 from pydantic import AliasChoices, AliasPath, BaseModel, ConfigDict, Field, RootModel, model_validator
 
+from meals.schemas.labels import CreateLabel, LabelResponse, check_unique_labels
+
 QUANTITY = r"\d+(?:\.\d+)?|\d+/\d+"
 QUANTITY_FIRST_REGEX = re.compile(
     rf"\s*(?P<quantity>{QUANTITY})\s*(?P<unit>[a-zA-Z]+)\s+(?P<name>[a-zA-Z][a-zA-Z '&-]*?)\s*"
@@ -75,11 +77,18 @@ class CreateRecipeRequest(BaseModel):
     name: str
     ingredients: list[CreateIngredientRequest]
     instructions: str
+    labels: list[CreateLabel] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def ingredients_are_unique(self) -> CreateRecipeRequest:
         """Ensure each ingredient is listed at most once."""
         check_unique_ingredient_names(self.ingredients)
+        return self
+
+    @model_validator(mode="after")
+    def labels_are_unique(self) -> CreateRecipeRequest:
+        """Ensure each label is listed at most once after normalisation."""
+        check_unique_labels(self.labels)
         return self
 
     @model_validator(mode="after")
@@ -98,6 +107,7 @@ class RecipeResponse(BaseModel):
     name: str
     ingredients: list[IngredientResponse]
     instructions: str
+    labels: list[LabelResponse] = Field(default_factory=list)
 
     @property
     def anchor(self) -> str:
@@ -110,11 +120,18 @@ class UpdateRecipeRequest(BaseModel):
     name: str
     ingredients: list[CreateIngredientRequest]
     instructions: str
+    labels: list[CreateLabel] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def ingredients_are_unique(self) -> UpdateRecipeRequest:
         """Ensure each ingredient is listed at most once."""
         check_unique_ingredient_names(self.ingredients)
+        return self
+
+    @model_validator(mode="after")
+    def labels_are_unique(self) -> UpdateRecipeRequest:
+        """Ensure each label is listed at most once after normalisation."""
+        check_unique_labels(self.labels)
         return self
 
 

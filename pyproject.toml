@@ -122,6 +122,7 @@ source_modules = [
   "meals.logging_config",
   "meals.middleware",
   "meals.error_handlers",
+  "meals.constants",
 ]
 forbidden_modules = [
   "meals.api",

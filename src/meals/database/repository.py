@@ -13,7 +13,9 @@ from meals.database.models import (
     StoredIngredient,
     StoredPlannedDay,
     StoredRecipe,
+    StoredRecipeLabel,
     StoredTimings,
+    SubCategory,
     User,
 )
 from meals.database.session import get_db
@@ -32,8 +34,12 @@ if t.TYPE_CHECKING:
 # MissingGreenlet (a 500). Keep these tuples complete and pass them to every query that
 # can return an object a response model will serialise.
 #
-# `RecipeResponse` serialises recipe.ingredients and each row's ingredient.
-RECIPE_LOAD_OPTIONS = (joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient),)
+# `RecipeResponse` serialises recipe.ingredients and each row's ingredient, plus
+# recipe.labels and each label's sub-category and category.
+RECIPE_LOAD_OPTIONS = (
+    joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient),
+    joinedload(StoredRecipe.labels).subqueryload(StoredRecipeLabel.sub_category).subqueryload(SubCategory.category),
+)
 # `PlannedDayResponse` serialises planned.recipe.
 PLANNED_DAY_LOAD_OPTIONS = (joinedload(StoredPlannedDay.recipe),)
 
@@ -108,7 +114,7 @@ class RecipeRepository:
 
         self.session.add(stored_recipe)
         await self.session.flush()
-        return stored_recipe
+        return t.cast("StoredRecipe", await self.get(stored_recipe.pk, user_pk))
 
     async def get(self, pk: int, user_pk: int) -> StoredRecipe | None:
         """Get the recipe by the primary key."""
@@ -186,7 +192,7 @@ class RecipeRepository:
                 RecipeIngredient(ingredient=ingredient, quantity=new_i.quantity, unit=new_i.unit)
             )
         await self.session.flush()
-        return existing_recipe
+        return t.cast("StoredRecipe", await self.get(existing_recipe.pk, user_pk))
 
     async def is_like(self, snippet: str, user_pk: int) -> list[StoredRecipe]:
         """Gets any recipes that are like the snippet given."""

@@ -6,9 +6,19 @@ from meals.database import Base, get_db
 
 def test_models_are_registered():
     """Every table must be registered on the metadata, since Alembic owns the schema."""
-    assert len(Base.registry.mappers) == snap(6)
+    assert len(Base.registry.mappers) == snap(9)
     assert sorted(Base.metadata.tables) == snap(
-        ["ingredients", "planned_days", "recipe_ingredients", "recipes", "timings", "users"]
+        [
+            "categories",
+            "ingredients",
+            "planned_days",
+            "recipe_ingredients",
+            "recipe_labels",
+            "recipes",
+            "sub_categories",
+            "timings",
+            "users",
+        ]
     )
 
 

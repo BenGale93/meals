@@ -221,6 +221,7 @@ class TestRecipesAPI:
                 "name": "Carrot Surprise",
                 "ingredients": [{"pk": 1, "name": "Carrot", "quantity": 20.0, "unit": "units"}],
                 "instructions": "Test instructions",
+                "labels": [],
             }
         )
 
@@ -281,6 +282,7 @@ class TestRecipesAPI:
                     {"pk": 2, "name": "delete", "quantity": 1.0, "unit": "stuff"},
                 ],
                 "instructions": "Test instructions",
+                "labels": [],
             }
         )
 
@@ -295,6 +297,7 @@ class TestRecipesAPI:
                 "name": "Carrot Surprise",
                 "ingredients": [{"pk": 1, "name": "Carrot", "quantity": 10.0, "unit": "units"}],
                 "instructions": "Test instructions",
+                "labels": [],
             }
         )
 
@@ -309,6 +312,7 @@ class TestRecipesAPI:
                     {"pk": 1, "name": "Carrot", "quantity": 10.0, "unit": "units"},
                 ],
                 "instructions": "Test instructions",
+                "labels": [],
             }
         )
 
@@ -326,6 +330,7 @@ class TestRecipesAPI:
                     {"pk": 2, "name": "new", "quantity": 1.0, "unit": "stuff"},
                 ],
                 "instructions": "Test instructions",
+                "labels": [],
             }
         )
 
@@ -351,6 +356,7 @@ class TestRecipesAPI:
                     {"pk": 3, "name": "sweets", "quantity": 50.0, "unit": "units"},
                 ],
                 "instructions": "Test instructions",
+                "labels": [],
             }
         )
 

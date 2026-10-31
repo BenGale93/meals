@@ -6,11 +6,20 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from meals.database.models import RecipeIngredient, StoredPlannedDay, StoredRecipe, User
+from meals.database.models import (
+    Category,
+    RecipeIngredient,
+    StoredPlannedDay,
+    StoredRecipe,
+    StoredRecipeLabel,
+    SubCategory,
+    User,
+)
 from meals.database.repository import PlanRepository, RecipeRepository, UserRepository
 from meals.database.session import Base, create_async_db_engine, get_db
 from meals.schemas import (
     CreateUserRequest,
+    Labels,
     PlannedDay,
     PlannedDayResponse,
     PlannedRecipe,
@@ -113,6 +122,8 @@ async def test_queries_eager_load_serialised_relationships(db_session: AsyncSess
     plan_repo = PlanRepository(db_session)
 
     recipe = await recipe_repo.create(carrots_recipe, user.pk)
+    recipe.labels.append(StoredRecipeLabel(sub_category=SubCategory(name="beef", category=Category(name="meat"))))
+    await db_session.flush()
     day = dt.date(2025, 1, 1)
     await plan_repo.update(PlannedDay(day=day, recipe=PlannedRecipe(pk=recipe.pk, name=recipe.name)), user.pk)
 
@@ -121,22 +132,29 @@ async def test_queries_eager_load_serialised_relationships(db_session: AsyncSess
     stored = await recipe_repo.get(recipe.pk, user.pk)
     assert stored is not None
     db_session.expunge_all()
-    assert [ingredient.name for ingredient in RecipeResponse.model_validate(stored).ingredients] == ["Carrot"]
+    stored_response = RecipeResponse.model_validate(stored)
+    assert [ingredient.name for ingredient in stored_response.ingredients] == ["Carrot"]
+    assert [(label.category, label.sub_category) for label in stored_response.labels] == [("meat", "beef")]
+    assert [str(label) for label in Labels.model_validate(stored.labels)] == ["meat::beef"]
 
     stored_by_name = await recipe_repo.get_by_name(recipe.name, user.pk)
     assert stored_by_name is not None
     db_session.expunge_all()
-    assert [ingredient.name for ingredient in RecipeResponse.model_validate(stored_by_name).ingredients] == ["Carrot"]
+    stored_response = RecipeResponse.model_validate(stored_by_name)
+    assert [ingredient.name for ingredient in stored_response.ingredients] == ["Carrot"]
+    assert [(label.category, label.sub_category) for label in stored_response.labels] == [("meat", "beef")]
 
     stored_all = await recipe_repo.get_all(user.pk)
     db_session.expunge_all()
     responses = [RecipeResponse.model_validate(stored) for stored in stored_all]
     assert [response.name for response in responses] == [recipe.name]
+    assert [(label.category, label.sub_category) for label in responses[0].labels] == [("meat", "beef")]
 
     stored_like = await recipe_repo.is_like("Carrot", user.pk)
     db_session.expunge_all()
     responses = [RecipeResponse.model_validate(stored) for stored in stored_like]
     assert [response.name for response in responses] == [recipe.name]
+    assert [(label.category, label.sub_category) for label in responses[0].labels] == [("meat", "beef")]
 
     stored_plan = await plan_repo.update(
         PlannedDay(day=day, recipe=PlannedRecipe(pk=recipe.pk, name=recipe.name)), user.pk
@@ -148,3 +166,114 @@ async def test_queries_eager_load_serialised_relationships(db_session: AsyncSess
     db_session.expunge_all()
     responses = [PlannedDayResponse.model_validate(stored) for stored in stored_plans]
     assert [response.recipe for response in responses] == [PlannedRecipe(pk=recipe.pk, name=recipe.name)]
+
+
+async def test_deleting_a_recipe_cascades_to_recipe_labels(db_session: AsyncSession, carrots_recipe):
+    user = await UserRepository(db_session).create(CreateUserRequest(user_name="User One"))
+    recipe = await RecipeRepository(db_session).create(carrots_recipe, user.pk)
+    recipe.labels.append(StoredRecipeLabel(sub_category=SubCategory(name="beef", category=Category(name="meat"))))
+    await db_session.flush()
+
+    await db_session.delete(recipe)
+    await db_session.flush()
+
+    assert (await db_session.scalars(select(StoredRecipeLabel))).all() == []
+
+
+async def test_deleting_a_category_cascades_to_sub_categories_and_recipe_labels(
+    db_session: AsyncSession, carrots_recipe
+):
+    user = await UserRepository(db_session).create(CreateUserRequest(user_name="User One"))
+    recipe = await RecipeRepository(db_session).create(carrots_recipe, user.pk)
+    category = Category(name="meat")
+    sub_category = SubCategory(name="beef", category=category)
+    recipe.labels.append(StoredRecipeLabel(sub_category=sub_category))
+    await db_session.flush()
+
+    await db_session.delete(category)
+    await db_session.flush()
+
+    assert (await db_session.scalars(select(SubCategory))).all() == []
+    assert (await db_session.scalars(select(StoredRecipeLabel))).all() == []
+
+
+async def test_recipe_labels_require_an_existing_recipe_and_sub_category(db_session: AsyncSession):
+    db_session.add(StoredRecipeLabel(recipe_pk=999, sub_category_pk=999))
+
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_sub_categories_require_an_existing_category(db_session: AsyncSession):
+    db_session.add(SubCategory(name="beef", category_pk=999))
+
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_recipe_labels_are_unique_per_recipe_and_sub_category(db_session: AsyncSession, carrots_recipe):
+    user = await UserRepository(db_session).create(CreateUserRequest(user_name="User One"))
+    recipe = await RecipeRepository(db_session).create(carrots_recipe, user.pk)
+    sub_category = SubCategory(name="beef", category=Category(name="meat"))
+    recipe.labels.extend(
+        [
+            StoredRecipeLabel(sub_category=sub_category),
+            StoredRecipeLabel(sub_category=sub_category),
+        ]
+    )
+
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_category_names_are_unique(db_session: AsyncSession):
+    db_session.add_all([Category(name="meat"), Category(name="meat")])
+
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_sub_category_names_are_unique_within_a_category(db_session: AsyncSession):
+    db_session.add(Category(name="meat", sub_categories=[SubCategory(name="stew"), SubCategory(name="stew")]))
+
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_the_same_sub_category_name_can_exist_in_different_categories(db_session: AsyncSession):
+    db_session.add_all(
+        [
+            Category(name="meat", sub_categories=[SubCategory(name="stew")]),
+            Category(name="fish", sub_categories=[SubCategory(name="stew")]),
+        ]
+    )
+    await db_session.flush()
+
+    assert len((await db_session.scalars(select(SubCategory))).all()) == 2
+
+
+async def test_recipe_labels_are_ordered_by_sub_category_pk(db_session: AsyncSession, carrots_recipe):
+    user = await UserRepository(db_session).create(CreateUserRequest(user_name="User One"))
+    recipe = await RecipeRepository(db_session).create(carrots_recipe, user.pk)
+    time_quick = SubCategory(name="quick", category=Category(name="time"))
+    meat_beef = SubCategory(name="beef", category=Category(name="meat"))
+    db_session.add_all([meat_beef, time_quick])
+    await db_session.flush()
+    recipe.labels.extend(
+        [
+            StoredRecipeLabel(sub_category=time_quick),
+            StoredRecipeLabel(sub_category=meat_beef),
+        ]
+    )
+    await db_session.flush()
+    expected = [
+        f"{sub_category.category.name}::{sub_category.name}"
+        for sub_category in sorted([time_quick, meat_beef], key=lambda sub_category: sub_category.pk)
+    ]
+    db_session.expunge_all()
+
+    stored = await RecipeRepository(db_session).get(recipe.pk, user.pk)
+    assert stored is not None
+    db_session.expunge_all()
+
+    assert [str(label) for label in RecipeResponse.model_validate(stored).labels] == expected
