@@ -403,7 +403,7 @@ gate.
       `GET /api/v1/labels`, query params on the list and summary endpoints.
 - [x] **M3 — Web UI.** Label chips, chip editor with autocomplete, recipe-list filter panel,
       summary filter, error formatting, `/recipe_list` retirement.
-- [ ] **M4 — Seeding.** Send labels from `recipes.yaml`, drop the skip warning, keep
+- [x] **M4 — Seeding.** Send labels from `recipes.yaml`, drop the skip warning, keep
       idempotence.
 - [ ] **M5 — Verification and rollout.** Full test matrix, `just`, migration checks, candidate
       deploy, TODO/README updates.

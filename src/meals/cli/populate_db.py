@@ -18,28 +18,13 @@ DEFAULT_USER_NAME = "Ben"
 app = typer.Typer()
 
 
-class SeedRecipe(CreateRecipeRequest):
-    """A recipe from the seed file.
-
-    Labels are inherited from :class:`CreateRecipeRequest` and validated, but the API
-    cannot store them yet (TODO -> Features item 1), so they are reported and skipped
-    instead of being sent.
-    """
-
-
-class SeedRecipes(RootModel[list[SeedRecipe]]):
+class SeedRecipes(RootModel[list[CreateRecipeRequest]]):
     """The recipes in a seed file."""
 
 
-def load_recipes(path: Path) -> list[SeedRecipe]:
-    """Load and validate the recipes, reporting labels the API cannot store yet."""
-    recipes = parse_yaml_file_as(SeedRecipes, path).root
-
-    labelled = [recipe.name for recipe in recipes if recipe.labels]
-    if labelled:
-        echo(f"[yellow]Labels are not supported by the API yet and were skipped for: {', '.join(labelled)}[/yellow]")
-
-    return recipes
+def load_recipes(path: Path) -> list[CreateRecipeRequest]:
+    """Load and validate the recipes."""
+    return parse_yaml_file_as(SeedRecipes, path).root
 
 
 def load_timings(path: Path) -> TimingsCreate:
@@ -54,11 +39,15 @@ def _client(base_url: str) -> httpx.AsyncClient:
 
 async def seed(
     client: httpx.AsyncClient,
-    recipes: list[SeedRecipe],
+    recipes: list[CreateRecipeRequest],
     timings: TimingsCreate,
     user: CreateUserRequest,
 ) -> None:
-    """Create the user if needed, then seed the recipes and timings."""
+    """Create the user if needed, then seed the recipes and timings.
+
+    Recipes that already exist are skipped by name, so re-running is idempotent but does not
+    backfill or update labels on existing recipes.
+    """
     response = await client.post("/users", json=user.model_dump())
     if response.status_code == httpx.codes.CONFLICT:
         echo(f"User {user.user_name!r} already exists; reusing it.")
@@ -68,7 +57,7 @@ async def seed(
     headers = user.auth_headers()
     created = 0
     for recipe in recipes:
-        response = await client.post("/recipes", json=recipe.model_dump(exclude={"labels"}), headers=headers)
+        response = await client.post("/recipes", json=recipe.model_dump(), headers=headers)
         if response.status_code == httpx.codes.CONFLICT:
             echo(f"Recipe {recipe.name!r} already exists; skipping it.")
             continue
@@ -95,5 +84,8 @@ def main(
     base_url: Annotated[str, typer.Option(help="Base URL of the API of a running server.")] = DEFAULT_BASE_URL,
     user_name: Annotated[str, typer.Option(help="User to seed the data for.")] = DEFAULT_USER_NAME,
 ) -> None:
-    """Seed a running meals server from YAML files."""
+    """Seed a running meals server from YAML files.
+
+    Existing recipes are skipped by name, so re-running is safe but does not update them.
+    """
     asyncio.run(_run(base_url, Path(recipes), Path(timings), user_name))
