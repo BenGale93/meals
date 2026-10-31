@@ -164,7 +164,7 @@ def page(content: ComponentType) -> Component:
                 html.Meta.charset(),
                 html.Meta.viewport(),
                 # TailwindCSS (Play CDN; the path pins the exact version)
-                html.script(src="https://cdn.tailwindcss.com/3.4.19"),
+                html.script(src="https://cdn.tailwindcss.com/3.4.17"),
                 # HTMX
                 html.script(src="https://unpkg.com/htmx.org@2.0.2/dist/htmx.min.js"),
                 # Alpine

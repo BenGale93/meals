@@ -64,6 +64,6 @@ class TestViewAPI:
     async def test_frontend_assets_are_pinned(self, client: AsyncClient):
         response = await client.get("/")
 
-        assert 'src="https://cdn.tailwindcss.com/3.4.19"' in response.text
+        assert 'src="https://cdn.tailwindcss.com/3.4.17"' in response.text
         assert 'src="https://unpkg.com/htmx.org@2.0.2/dist/htmx.min.js"' in response.text
         assert 'src="https://unpkg.com/alpinejs@3.17.5/dist/cdn.min.js"' in response.text
