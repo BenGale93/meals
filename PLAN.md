@@ -11,8 +11,10 @@ Current state (October 2026):
 
 - The planner MVP is working: a seven-day plan (`/plan.html`), recipe autocomplete
   (`/meals`), a recipe summary table (`/summary`), recipe CRUD, and the roast timings view.
-- The schema is owned by Alembic (`migrations/`, head `0cba625154a2`).
+- The schema is owned by Alembic (`migrations/`, head `d9944126eefa`).
 - The app is single-user, self-hosted on a Raspberry Pi, reachable over Tailscale.
+- The labels feature is implemented on the local `feat/labels` branch and is awaiting candidate
+  deployment. The seed recipes in `recipes.yaml` carry a broad label set.
 - The labels backend on `origin/feat/labels` was never merged. It is archived at tag
   `archive/feat-labels` and is a **reference only**; the implementation starts fresh from
   `master` on the current `feat/labels` branch.
@@ -27,7 +29,7 @@ Current state (October 2026):
 - `PLAN.md` is the first commit on the new branch; implementation proceeds milestone by
   milestone, with `just` green at each merge point.
 
-## Feature: Recipe labels and filtering (next)
+## Feature: Recipe labels and filtering (implemented, pending rollout)
 
 ### Summary
 
@@ -332,33 +334,19 @@ Verification before merging:
 4. Compare `.schema` dumps with the expected model schema.
 5. Run the suite (it builds the schema from metadata, not the migration).
 
-Development database (`meals.db` in the checkout): it contains label tables from the earlier
-experiment, has no `alembic_version`, and predates the last two revisions (it still has the old
-single-column `UNIQUE` constraints on `recipes.name` and `planned_days.day`). Running
-`alembic upgrade head` directly would replay the baseline and fail with
-`table recipes already exists`. Treat it as a pre-Alembic database and bring it up in order.
-Confirm `DATABASE_URL` resolves to the checkout's `meals.db` (it is unset locally, which yields
-the relative default) and **not** the live `/home/galeb/meals-data/meals.db` before running
-these:
-
-```bash
-just backup      # verified copy first (uses the relative meals.db; there is no .env locally)
-# The experiment tables are not part of any revision, so remove them first:
-sqlite3 meals.db "DROP TABLE recipe_labels; DROP TABLE sub_categories; DROP TABLE categories;"
-# The rest of the schema matches the baseline, so stamp it and let Alembic apply the rest:
-uv run alembic stamp 8b8ea410224a
-just migrate
-uv run alembic check
-```
-
-This preserves the 35 seeded recipes in the dev database. If `alembic check` reports drift
-beyond the expected revisions, the dev database is disposable: delete it, `just migrate` from
-scratch, and reseed with `just start` + `meals-seed` (or `uv run meals-seed`).
+Development database (`meals.db` in the checkout): on 2026-10-31 it was deliberately deleted
+and rebuilt from scratch with `just migrate`, then reseeded with `meals-seed`. It is
+disposable and currently sits at head `d9944126eefa`. To reset it again, delete the file,
+run `just migrate`, start the server, and run `uv run meals-seed`. An earlier pre-Alembic
+experiment database needed a backup, manual removal of stale label tables, and an Alembic
+stamp; that recovery path is no longer needed.
 
 Production (Pi): the migration is additive and the live database has no label tables, so no
-data migration is required. Validate with `just candidate` (a copy of the live DB on `:8001`),
-smoke-test labels and filtering, then `just candidate promote` (fresh backup, migrate, restart,
-health check). Rollback remains the previous commit plus the pre-cutover backup.
+data migration is required. Existing recipes are not label-backfilled by `meals-seed` because
+the seed skips recipes that already exist; labels can be added through the edit form until a
+seed backfill mode exists. Validate with `just candidate` (a copy of the live DB on `:8001`),
+smoke-test label editing and filtering, then `just candidate promote` (fresh backup, migrate,
+restart, health check). Rollback remains the previous commit plus the pre-cutover backup.
 
 ### Testing
 
