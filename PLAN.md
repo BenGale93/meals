@@ -398,7 +398,7 @@ gate.
 - [x] **M1 — Schema and storage.** `schemas/labels.py`, request/response fields, normalising
       validators, `constants.py`, models, `RECIPE_LOAD_OPTIONS`, migration, dev-DB reset.
       Add `meals.constants` to the core side of the import-linter contract for consistency.
-- [ ] **M2 — Repository, services, API.** Label upsert/diff, shared matching-pk subquery,
+- [x] **M2 — Repository, services, API.** Label upsert/diff, shared matching-pk subquery,
       filtered `get_all` and `summarise`, `RecipeService.list/labels`, `PlanService.summary`,
       `GET /api/v1/labels`, query params on the list and summary endpoints.
 - [ ] **M3 — Web UI.** Label chips, chip editor with autocomplete, recipe-list filter panel,

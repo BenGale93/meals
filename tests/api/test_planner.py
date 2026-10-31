@@ -181,3 +181,82 @@ class TestPlannedDayAPI:
                 RecipeSummary(name="Take Away", count=0, last_eaten=None),
             ]
         )
+
+    @time_machine.travel(dt.date(2025, 1, 1))
+    async def test_summarise_filters_by_labels(
+        self, client: AsyncClient, burger_recipe, sausage_recipe, carrots_recipe
+    ):
+        planned_recipes = []
+        for recipe in (burger_recipe, sausage_recipe):
+            response = await client.post("/api/v1/recipes", json=recipe.model_dump())
+            response.raise_for_status()
+            planned_recipes.append(PlannedRecipe.model_validate(response.json()))
+
+        unplanned_recipe = carrots_recipe.model_dump() | {
+            "name": "Beef Stew",
+            "labels": [{"category": "meat", "sub_category": "beef"}],
+        }
+        response = await client.post("/api/v1/recipes", json=unplanned_recipe)
+        response.raise_for_status()
+
+        burger, sausage = planned_recipes
+        for recipe, day in [
+            (burger, dt.date(2025, 1, 1)),
+            (burger, dt.date(2025, 1, 8)),
+            (sausage, dt.date(2024, 12, 31)),
+        ]:
+            response = await client.post("/api/v1/planned_day", json=PlannedDay(day=day, recipe=recipe).model_dump())
+            response.raise_for_status()
+
+        response = await client.get("/api/v1/planned_day/summary/", params=[("labels", "meat::beef")])
+        summary = [RecipeSummary.model_validate(s) for s in response.json()]
+        assert summary == [
+            RecipeSummary(name="Beef Stew", count=0, last_eaten=None),
+            RecipeSummary(name="Burger", count=1, last_eaten=dt.date(2025, 1, 1)),
+        ]
+
+        response = await client.get("/api/v1/planned_day/summary/", params=[("labels", "meat::pork")])
+        summary = [RecipeSummary.model_validate(s) for s in response.json()]
+        assert summary == [RecipeSummary(name="Sausage Pasta", count=1, last_eaten=dt.date(2024, 12, 31))]
+
+        response = await client.get(
+            "/api/v1/planned_day/summary/",
+            params=[("labels", "meat::beef"), ("labels", "time::quick")],
+        )
+        summary = [RecipeSummary.model_validate(s) for s in response.json()]
+        assert summary == [RecipeSummary(name="Burger", count=1, last_eaten=dt.date(2025, 1, 1))]
+
+        response = await client.get(
+            "/api/v1/planned_day/summary/",
+            params=[("labels", "meat::beef"), ("labels", "time::slow")],
+        )
+        assert response.json() == []
+
+    async def test_summarise_filter_respects_user_scope(
+        self, client: AsyncClient, user_two_client: AsyncClient, burger_recipe, sausage_recipe
+    ):
+        burger_response = await client.post("/api/v1/recipes", json=burger_recipe.model_dump())
+        burger_response.raise_for_status()
+        sausage_response = await user_two_client.post("/api/v1/recipes", json=sausage_recipe.model_dump())
+        sausage_response.raise_for_status()
+
+        burger = PlannedRecipe.model_validate(burger_response.json())
+        sausage = PlannedRecipe.model_validate(sausage_response.json())
+        for user_client, recipe in ((client, burger), (user_two_client, sausage)):
+            response = await user_client.post(
+                "/api/v1/planned_day",
+                json=PlannedDay(day=dt.date(2025, 1, 1), recipe=recipe).model_dump(),
+            )
+            response.raise_for_status()
+
+        response = await client.get("/api/v1/planned_day/summary/", params=[("labels", "meat::pork")])
+        assert response.json() == []
+
+        response = await user_two_client.get("/api/v1/planned_day/summary/", params=[("labels", "meat::pork")])
+        summary = [RecipeSummary.model_validate(s) for s in response.json()]
+        assert summary == [RecipeSummary(name="Sausage Pasta", count=1, last_eaten=dt.date(2025, 1, 1))]
+
+    async def test_summarise_rejects_malformed_labels(self, client: AsyncClient):
+        response = await client.get("/api/v1/planned_day/summary/", params=[("labels", "bad-label")])
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

@@ -15,6 +15,8 @@ from meals.exceptions import RecipeDoesNotExistError
 from meals.schemas import (
     CreateRecipeRequest,
     DayToPlan,
+    LabelResponse,
+    Labels,
     PlannedDay,
     PlannedDayResponse,
     PlannedDays,
@@ -31,6 +33,7 @@ from meals.schemas import (
 if t.TYPE_CHECKING:
     from meals.database.models import StoredTimings
     from meals.database.repository import PlanRepository, RecipeRepository, TimingsRepository
+    from meals.schemas import LabelFilter
 
 
 class RecipeService:
@@ -40,10 +43,22 @@ class RecipeService:
         """Initialise with a recipe repository."""
         self._repo = repo
 
-    async def list(self, user_pk: int, *, has_ingredients: bool = True) -> Recipes:
-        """Return the user's recipes."""
-        recipes = await self._repo.get_all(user_pk, has_ingredients=has_ingredients)
+    async def list(
+        self, user_pk: int, *, has_ingredients: bool = True, label_filter: LabelFilter | None = None
+    ) -> Recipes:
+        """Return the user's recipes, optionally filtered by labels."""
+        recipes = await self._repo.get_all(user_pk, has_ingredients=has_ingredients, label_filter=label_filter)
         return Recipes.model_validate(recipes)
+
+    async def labels(self) -> Labels:
+        """Return the full label taxonomy."""
+        sub_categories = await self._repo.get_labels()
+        return Labels(
+            [
+                LabelResponse(category=sub_category.category.name, sub_category=sub_category.name)
+                for sub_category in sub_categories
+            ]
+        )
 
     async def get(self, pk: int, user_pk: int) -> RecipeResponse:
         """Return a recipe by primary key, or raise `RecipeDoesNotExistError`."""
@@ -95,9 +110,9 @@ class PlanService:
         planned_days = await self._plan_repo.get_range(start_date, end_date, user_pk)
         return [PlannedDayResponse.model_validate(day) for day in planned_days]
 
-    async def summary(self, user_pk: int) -> list[RecipeSummary]:
-        """Return a summary of the meals eaten so far."""
-        summary = await self._plan_repo.summarise(user_pk)
+    async def summary(self, user_pk: int, label_filter: LabelFilter | None = None) -> list[RecipeSummary]:
+        """Return a summary of the meals eaten so far, optionally filtered by labels."""
+        summary = await self._plan_repo.summarise(user_pk, label_filter=label_filter)
         return [RecipeSummary(name=name, count=count, last_eaten=last_eaten) for name, count, last_eaten in summary]
 
     async def plan(self, data: PlannedDay, user_pk: int) -> PlannedDayResponse:

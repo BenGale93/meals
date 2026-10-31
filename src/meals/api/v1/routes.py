@@ -1,8 +1,9 @@
 """The routes for the data API."""
 
+import typing as t
 from datetime import date  # noqa: TC003
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from meals import schemas
 from meals.auth import CurrentUser  # noqa: TC001
@@ -13,9 +14,21 @@ from meals.exceptions import (
     TimingAlreadyExistsError,
     UserAlreadyExistsError,
 )
+from meals.schemas import LabelFilter
 from meals.services import PlanServiceDep, RecipeServiceDep, TimingsServiceDep  # noqa: TC001
 
 router = APIRouter(prefix="/v1", tags=["v1"])
+
+
+def get_label_filter(labels: t.Annotated[list[str] | None, Query()] = None) -> LabelFilter:
+    """Parse repeated label query parameters, mapping malformed tokens to 422."""
+    try:
+        return LabelFilter(labels or [])
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from None
+
+
+LabelFilterDep = t.Annotated[LabelFilter, Depends(get_label_filter)]
 
 
 @router.post("/users", status_code=status.HTTP_201_CREATED)
@@ -45,10 +58,22 @@ async def create_recipe(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=e.message) from None
 
 
+@router.get("/labels", status_code=status.HTTP_200_OK)
+async def get_labels(service: RecipeServiceDep, _: CurrentUser) -> schemas.Labels:
+    """Get the full label taxonomy."""
+    return await service.labels()
+
+
 @router.get("/recipes", status_code=status.HTTP_200_OK)
-async def get_recipes(service: RecipeServiceDep, user: CurrentUser, *, has_ingredients: bool = True) -> schemas.Recipes:
+async def get_recipes(
+    service: RecipeServiceDep,
+    user: CurrentUser,
+    label_filter: LabelFilterDep,
+    *,
+    has_ingredients: bool = True,
+) -> schemas.Recipes:
     """Get all the recipe in the database."""
-    return await service.list(user.pk, has_ingredients=has_ingredients)
+    return await service.list(user.pk, has_ingredients=has_ingredients, label_filter=label_filter)
 
 
 @router.get("/recipes/{pk}", status_code=status.HTTP_200_OK)
@@ -138,6 +163,8 @@ async def get_plans(
 
 
 @router.get("/planned_day/summary/", status_code=status.HTTP_200_OK)
-async def plan_summary(service: PlanServiceDep, user: CurrentUser) -> list[schemas.RecipeSummary]:
+async def plan_summary(
+    service: PlanServiceDep, user: CurrentUser, label_filter: LabelFilterDep
+) -> list[schemas.RecipeSummary]:
     """Get the plans over the given range."""
-    return await service.summary(user.pk)
+    return await service.summary(user.pk, label_filter=label_filter)
