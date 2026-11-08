@@ -21,7 +21,7 @@ contract. The planner needs exactly seven days and must not fetch an eighth.
 - `?start=YYYY-MM-DD` is used exactly as the first row; it is not snapped to Monday or any
   other weekday.
 - Previous and Next shift the start by seven days. Today resets the start to today.
-- The URL is the source of truth for the viewed window.
+- The URL determines the viewed window.
 - Today is highlighted only when it falls inside the viewed window. The Today control is
   disabled when the window starts today and is a link otherwise.
 - Planner date ranges stay inclusive on both ends. A seven-day window passes `start` and
@@ -40,9 +40,9 @@ contract. The planner needs exactly seven days and must not fetch an eighth.
   transitions.
 - The server evaluates `date.today()` once per request. The Pi's `TZ=Europe/London` setting
   is what makes that the user's local date.
-- Every date boundary is explicit: the end date is included, and the next window starts on
+- Date boundaries are explicit: the end date is included, and the next window starts on
   the following day, so adjacent windows do not overlap.
-- Callers must remember the inclusive convention; the regression test documents it.
+- Callers must remember the inclusive convention; the regression test records it.
 
 ## Alternatives considered
 

@@ -20,16 +20,16 @@ SQLAlchemy attempts an implicit lazy load outside the async greenlet context and
 `recipe.ingredients → ingredient`, `recipe.labels → sub_category → category`, and
 `planned_day.recipe`.
 
-Some relationships already use `lazy="selectin"`, but that is a model-level default, not a
-statement about which query is about to serialise what. It also loads data no response model
-asked for: a plan's `PlannedRecipe` only needs a recipe's pk and name, yet loading a planned
-day through the model default also fetches that recipe's ingredients. The rest of the chain
+Some relationships already use `lazy="selectin"`, but that is a model-level default and does
+not describe which query will serialise which relationship. It also loads data no response
+model asked for: a plan's `PlannedRecipe` only needs a recipe's pk and name, yet loading a
+planned day through the model default also fetches that recipe's ingredients. The rest of the chain
 (recipe labels, a label's sub-category and category, a planned day's recipe) is not loaded
 automatically at all.
 
 ## Decision
 
-### Schemas are the boundary, ORM models are persistence
+### Schemas and ORM models
 
 - Request and response shapes live in `meals.schemas`, split by domain and re-exported from
   `meals.schemas`. ORM models live in `meals.database.models` and are not the API or HTML
@@ -41,7 +41,7 @@ automatically at all.
 - Validation includes the domain rules that must not be duplicated: ingredient string
   parsing, label normalisation and uniqueness, recipe ingredient uniqueness, and the
   ingredient/instruction pairing rule. A transport that bypasses the model bypasses the
-  rules, so it is a bug, not an optimisation.
+  rules; that is a bug.
 - Response models use `ConfigDict(from_attributes=True)` and are built from ORM objects with
   `model_validate` in the service layer. They are what both the JSON serialiser and the htmy
   components consume; templates never receive ORM objects.
@@ -52,23 +52,23 @@ automatically at all.
 - Response models are also the client contract: the CLI and tests parse response JSON back
   into `PlannedRecipe` and the other response models.
 
-### Every relationship a response model reads is eager-loaded
+### Eager loading
 
 - The query that returns an ORM object destined for a response model must load every
   relationship that model traverses. The shared tuples in
-  `src/meals/database/repository.py` are the single source of truth:
+  `src/meals/database/repository.py` define the load options:
   `RECIPE_LOAD_OPTIONS` for recipes (ingredients, each ingredient, labels, each label's
   sub-category, and its category) and `PLANNED_DAY_LOAD_OPTIONS` for planned days (their
   recipe).
 - `selectinload` loads collections (ingredients and labels) and `joinedload` follows the
-  to-one chain from each collection row. This keeps one collection from multiplying the
-  other's rows, so the queries do not need `unique()` to collapse duplicate parents. It also
-  replaces the legacy `subqueryload` with the current SQLAlchemy recommendation.
-- A response model that reads only part of an ORM object loads only those columns.
+  to-one chain from each collection row. This prevents one collection from multiplying the
+  other's rows and avoids duplicate parents. It also replaces the legacy `subqueryload` with
+  the current SQLAlchemy recommendation.
+- A response model that uses only some columns loads only those columns.
   `PLANNED_DAY_LOAD_OPTIONS` joins the recipe with `load_only(StoredRecipe.pk,
   StoredRecipe.name)` and applies `raiseload("*")` to the recipe path, which suppresses the
   model-level selectin relationships. A plan query therefore fetches one row and does not
-  drag in ingredients or labels that `PlannedRecipe` never reads.
+  load ingredients or labels that `PlannedRecipe` never reads.
 - Every query that can return such an object passes the matching tuple: recipe `get`,
   `get_by_name`, `get_all`, `is_like`, and the post-write reloads; plan `update` and
   `get_range`.
@@ -79,37 +79,36 @@ automatically at all.
   `expunge_all()` before calling `model_validate`. A relationship that was not loaded then
   raises `DetachedInstanceError` in the test instead of becoming a `MissingGreenlet` 500 in
   production. API and web tests also exercise each endpoint with related data.
-- Query-count tests lock in the cost side of the rule, which the detached-object test cannot
-  see. Recipe responses must issue one select per loaded tree (recipe, ingredients, labels),
-  and a plan response must issue a single select with no recipe ingredient or label query.
+- Query-count tests check the cost, which the detached-object test cannot. Recipe responses
+  must issue one select per loaded tree (recipe, ingredients, labels), and a plan response
+  must issue a single select with no recipe ingredient or label query.
 
 ## Consequences
 
 - The API, pages, and CLI share one definition of valid input and one output shape, so a rule
   cannot drift between transports.
 - Changing a field or validator in `meals.schemas` affects every consumer at once. That is
-  deliberate, but it makes the schema package a compatibility-sensitive shared module.
+  expected, but it makes the schema package a compatibility-sensitive shared module.
 - The public JSON/HTML shape is independent of the tables: a column rename or a new join
   table does not automatically change the API.
 - Eager loading makes some queries fetch more rows or issue an extra select. The cost is
-  visible at the query instead of being hidden behind per-row lazy loads, and queries that do
-  not serialise relationships do not pay for them. A recipe response now takes three selects;
-  a plan response takes one.
-- Model-level `lazy` defaults are not the contract. A query that reads only part of an object
-  can override them with `raiseload`, so adding a relationship to `StoredRecipe` does not
-  silently change the cost of a plan query.
-- Repositories depend on request-model fields (only for typing; the runtime dependency is on
-  the validated object). If storage and transport ever diverge, an explicit mapping belongs
-  in the service layer rather than making the ORM model the request model.
-- The detached-object test is a strong guard for known query paths, but it cannot prove that
-  a brand-new query is covered. Reviewers must extend the test when adding a query that
-  returns a response-model source.
-- The test reports `DetachedInstanceError` while production would report `MissingGreenlet`;
-  both mean the same thing — a relationship was read after the query, without being loaded —
-  so the test intentionally checks the invariant rather than the exact exception type.
-- Formatting validation errors is transport-specific: the API returns FastAPI's 422 body,
-  while the web routes use fasthx's `error_component_selector` to render a friendly fragment.
-  The models and messages are shared; only the presentation differs.
+  visible in the query instead of being hidden in per-row lazy loads, and queries that do not
+  serialise relationships do not load them. A recipe response now takes three selects; a plan
+  response takes one.
+- Model-level `lazy` settings are defaults; each query still decides what to load. A query
+  that uses only part of an object can override them with `raiseload`, so a new
+  `StoredRecipe` relationship does not silently change the cost of a plan query.
+- Repositories depend on request-model fields for typing, but the runtime dependency is on the
+  validated object. If storage and transport ever diverge, an explicit mapping belongs in the
+  service layer rather than making the ORM model the request model.
+- The detached-object test covers known query paths, but not a new query. Reviewers must
+  extend it when adding a query that returns a response-model source.
+- The test raises `DetachedInstanceError` where production raises `MissingGreenlet`; both
+  mean a relationship was read after the query without being loaded. The test checks that
+  invariant, not the exception type.
+- Validation errors are presented differently by transport: the API returns FastAPI's 422
+  body, while the web routes use fasthx's `error_component_selector` to render an HTML
+  fragment. The models and messages are shared; only the presentation differs.
 
 ## Alternatives considered
 
@@ -122,8 +121,8 @@ automatically at all.
   server-rendered app; one schema package already serves JSON, HTML, and YAML.
 - **Set `lazy="selectin"` on every relationship instead of per-query options**: rejected
   because it hides the query cost, loads relationships a response does not read, and still
-  does not express the serialisation requirement. It is what made plan responses fetch recipe
-  ingredients before the load options suppressed it.
+  does not express the serialisation requirement. It caused plan responses to fetch recipe
+  ingredients before the load options suppressed them.
 - **Eager-load every relationship on every query**: rejected because it makes unrelated
   queries heavier and still requires a decision about which paths each response needs.
 - **Serialise inside the repository**: rejected because it would make persistence responsible

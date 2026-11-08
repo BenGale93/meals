@@ -36,8 +36,7 @@ partial updates, browser history, and working links when JavaScript is unavailab
   with browser back/forward.
 - History entries hold the page URL, so reloading or opening a back/forward entry renders the
   full page rather than the bare fragment.
-- The panel id and the fragment root are a contract: the fragment must return the expected
-  single root.
+- The fragment must return a single root with the id the caller targets.
 - Full-page and fragment routes cannot drift in content because they share the view model.
 - Markup tests cannot verify history or partial-swap behaviour. Browser click-through remains
   part of verification for HTMX/Alpine changes.
