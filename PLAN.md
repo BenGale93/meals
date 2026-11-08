@@ -370,15 +370,15 @@ even with the old eight-day query.
 
 ## Task breakdown
 
-- [ ] **M1 - Window model and service.** Change `PlanService.week` to accept a start
+- [x] **M1 - Window model and service.** Change `PlanService.week` to accept a start
       (default today) and query `start..start + 6`, add `PlanService.clear`, and add the
       service regression test for the query range.
-- [ ] **M2 - Repository and JSON API.** Add `PlanRepository.clear` and
+- [x] **M2 - Repository and JSON API.** Add `PlanRepository.clear` and
       `DELETE /api/v1/planned_day`; cover found, not-found, cross-user, and validation cases.
-- [ ] **M3 - Web page and fragment.** Build `PlannerWindow`, server-render the window on
+- [x] **M3 - Web page and fragment.** Build `PlannerWindow`, server-render the window on
       `/plan.html`, make `/weeks_plan` accept `start`, add navigation, today highlighting,
       date labels, and the clear route. Update the existing page/fragment tests.
-- [ ] **M4 - Clear UI.** Add the conditional Clear button and panel swap; cover planned and
+- [x] **M4 - Clear UI.** Add the conditional Clear button and panel swap; cover planned and
       empty rows, idempotent clears, user scoping, and preserving the viewed window.
 - [ ] **M5 - Verification.** Run `just`; click through in a browser (or headless) to confirm
       HTMX pushes `/plan.html?start=...`, back/forward restores a window, and Clear empties

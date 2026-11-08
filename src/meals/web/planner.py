@@ -1,13 +1,13 @@
 """The meal planner page."""
 
 import typing as t
-from datetime import date  # noqa: TC003
+from datetime import date, timedelta
 
 from fastapi import Form, Query, Response
 from htmy import Component, ComponentType, html
 
 from meals.auth import CurrentUser  # noqa: TC001
-from meals.schemas import LabelFilter, Labels, PlannedDays, RecipeSummary  # noqa: TC001
+from meals.schemas import DayToPlan, LabelFilter, Labels, PlannedDays, RecipeSummary  # noqa: TC001
 from meals.services import PlanServiceDep, RecipeServiceDep  # noqa: TC001
 from meals.web.core import (
     PLANNER_PAGE,
@@ -19,6 +19,9 @@ from meals.web.core import (
     router,
     safe_label_filter,
 )
+
+if t.TYPE_CHECKING:
+    from meals.services import PlanService
 
 PLANNER_SCRIPT = html.script("""
 function checkUserKeydown(event) {
@@ -53,6 +56,24 @@ document.body.addEventListener('show-error', function(evt) {
 """)
 
 
+class PlannerWindow(t.NamedTuple):
+    """The rolling seven-day window rendered by the planner."""
+
+    start: date
+    days: PlannedDays
+    today: date
+
+    @property
+    def end(self) -> date:
+        """The last day in the window."""
+        return self.start + timedelta(days=6)
+
+    @property
+    def starts_today(self) -> bool:
+        """Whether the window starts on today."""
+        return self.start == self.today
+
+
 def meal_input(meal_for_day: str, i: int) -> ComponentType:
     """Takes the name of the meal for the given day."""
     return html.input_(
@@ -66,9 +87,9 @@ def meal_input(meal_for_day: str, i: int) -> ComponentType:
     )
 
 
-def day_plan(meal_for_day: str, i: int) -> ComponentType:
+def day_plan(meal_for_day: str, i: int, start: date) -> ComponentType:
     """Plan for a given day."""
-    return html.div(
+    controls: list[ComponentType] = [
         meal_input(meal_for_day, i),
         html.datalist(id=f"meal-list-{i}"),
         html.button(
@@ -79,38 +100,133 @@ def day_plan(meal_for_day: str, i: int) -> ComponentType:
             hx_swap="none",
             hx_include="closest tr",
         ),
-        class_="flex items-center space-x-2",
-    )
-
-
-def planned_week_div(current_plan: PlannedDays) -> ComponentType:
-    """The planned week table."""
-    table_rows = []
-    for i, planned_day in enumerate(current_plan.root):
-        current_date = planned_day.day.strftime("%Y-%m-%d")
-        current_day = planned_day.day.strftime("%A")
-        meal_for_day = planned_day.recipe.name if planned_day.recipe else ""
-        table_rows.append(
-            html.tr(
-                html.td(current_day, html.input_(value=current_date, name="day", type="hidden"), class_="px-4 py-3"),
-                html.td(
-                    day_plan(meal_for_day, i),
-                    class_="px-4 py-3",
-                ),
-                class_="hover:bg-gray-50",
+    ]
+    if meal_for_day:
+        controls.append(
+            html.button(
+                "Clear",
+                type="button",
+                class_="px-3 py-1 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition",
+                hx_post=f"/planned_day/clear?start={start.isoformat()}",
+                hx_target="#week-panel",
+                hx_swap="outerHTML",
+                hx_include="closest tr",
             )
         )
 
-    return html.table(
-        html.thead(
-            html.tr(
-                html.th("Date", class_="px-4 py-2 text-left text-gray-600"),
-                html.th("Meal", class_="px-4 py-2 text-left text-gray-600"),
-            ),
-            class_="bg-gray-100",
+    return html.div(*controls, class_="flex items-center space-x-2")
+
+
+def today_control(window: PlannerWindow) -> ComponentType:
+    """A link back to the today-at-top window, or a label when already there."""
+    if window.starts_today:
+        return html.span(
+            "Today",
+            **{"aria-disabled": "true"},
+            class_="px-3 py-1 bg-gray-100 text-gray-400 rounded-lg cursor-not-allowed",
+        )
+
+    return html.a(
+        "Today",
+        href="/plan.html",
+        hx_get=f"/weeks_plan?start={window.today.isoformat()}",
+        hx_target="#week-panel",
+        hx_swap="outerHTML",
+        hx_push_url="true",
+        class_="px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition",
+    )
+
+
+def window_nav(window: PlannerWindow) -> ComponentType:
+    """Previous/next seven-day navigation and a jump back to today."""
+    previous = window.start - timedelta(days=7)
+    next_ = window.start + timedelta(days=7)
+    link_class = "px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition"
+    return html.div(
+        html.a(
+            "Previous 7 days",
+            href=f"/plan.html?start={previous.isoformat()}",
+            hx_get=f"/weeks_plan?start={previous.isoformat()}",
+            hx_target="#week-panel",
+            hx_swap="outerHTML",
+            hx_push_url="true",
+            class_=link_class,
         ),
-        html.tbody(*table_rows, class_="divide-y divide-gray-200"),
-        class_="min-w-full bg-white border border-gray-300 rounded-lg shadow-sm",
+        today_control(window),
+        html.a(
+            "Next 7 days",
+            href=f"/plan.html?start={next_.isoformat()}",
+            hx_get=f"/weeks_plan?start={next_.isoformat()}",
+            hx_target="#week-panel",
+            hx_swap="outerHTML",
+            hx_push_url="true",
+            class_=link_class,
+        ),
+        class_="flex flex-wrap items-center gap-2",
+    )
+
+
+def window_header(window: PlannerWindow) -> ComponentType:
+    """The window date range and navigation controls."""
+    return html.div(
+        html.h2(
+            f"{window.start.strftime('%d %b %Y')} - {window.end.strftime('%d %b %Y')}",
+            class_="text-lg font-semibold text-gray-800",
+        ),
+        window_nav(window),
+        class_="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+    )
+
+
+def planned_day_row(planned_day: DayToPlan, i: int, window: PlannerWindow) -> ComponentType:
+    """One row of the planned window."""
+    is_today = planned_day.day == window.today
+    date_cell: list[ComponentType] = [
+        html.div(planned_day.day.strftime("%A"), class_="font-medium"),
+        html.div(planned_day.day.strftime("%d %b"), class_="text-xs text-gray-500"),
+        html.input_(value=planned_day.day.isoformat(), name="day", type="hidden"),
+    ]
+    if is_today:
+        date_cell.insert(
+            1,
+            html.span(
+                "Today",
+                class_="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700",
+            ),
+        )
+
+    attributes: dict[str, t.Any] = {}
+    if is_today:
+        attributes["aria-current"] = "date"
+
+    meal_for_day = planned_day.recipe.name if planned_day.recipe else ""
+    return html.tr(
+        html.td(*date_cell, class_="px-4 py-3"),
+        html.td(day_plan(meal_for_day, i, window.start), class_="px-4 py-3"),
+        class_="bg-green-50" if is_today else "hover:bg-gray-50",
+        **attributes,
+    )
+
+
+def planned_week_div(window: PlannerWindow) -> ComponentType:
+    """The rolling seven-day plan table."""
+    table_rows = [planned_day_row(planned_day, i, window) for i, planned_day in enumerate(window.days.root)]
+
+    return html.section(
+        window_header(window),
+        html.table(
+            html.thead(
+                html.tr(
+                    html.th("Date", class_="px-4 py-2 text-left text-gray-600"),
+                    html.th("Meal", class_="px-4 py-2 text-left text-gray-600"),
+                ),
+                class_="bg-gray-100",
+            ),
+            html.tbody(*table_rows, class_="divide-y divide-gray-200"),
+            class_="min-w-full bg-white border border-gray-300 rounded-lg shadow-sm",
+        ),
+        id="week-panel",
+        class_="space-y-3",
     )
 
 
@@ -178,14 +294,22 @@ def summary_table(panel: SummaryPanel) -> ComponentType:
     )
 
 
+async def _window_for(service: PlanService, user_pk: int, start: date | None = None) -> PlannerWindow:
+    """Build the planner window for a request, defaulting to today."""
+    today = date.today()
+    first_day = start or today
+    days = await service.week(user_pk, first_day)
+    return PlannerWindow(start=first_day, days=days, today=today)
+
+
 @PageRegistry.register(PLANNER_PAGE)
-def plan_page(_: t.Any) -> Component:
+def plan_page(window: PlannerWindow) -> Component:
     """The HTML of the plan page of the app."""
     return page(
         html.div(
             html.main(
                 html.h1("Weekly Meal Plan", class_="text-2xl font-bold text-green-700 mb-6"),
-                html.div(hx_get="/weeks_plan", hx_trigger="load", hx_swap="outerHTML"),
+                planned_week_div(window),
                 html.div(hx_get="/summary", hx_trigger="load", hx_swap="outerHTML"),
                 class_="max-w-3xl mx-auto p-6 mt-8 bg-white shadow-md rounded-2xl",
             ),
@@ -196,15 +320,24 @@ def plan_page(_: t.Any) -> Component:
 
 @router.get(PLANNER_PAGE.path)
 @htmy_renderer.page(plan_page)
-async def plan(_: CurrentUser) -> None:
+async def plan(
+    service: PlanServiceDep,
+    user: CurrentUser,
+    start: t.Annotated[date | None, Query()] = None,
+) -> PlannerWindow:
     """The index page of the application."""
+    return await _window_for(service, user.pk, start)
 
 
 @router.get("/weeks_plan", response_model=None)
 @htmy_renderer.page(planned_week_div)
-async def weeks_plan(service: PlanServiceDep, user: CurrentUser) -> PlannedDays:
-    """Gets the plan for the week."""
-    return await service.week(user.pk)
+async def weeks_plan(
+    service: PlanServiceDep,
+    user: CurrentUser,
+    start: t.Annotated[date | None, Query()] = None,
+) -> PlannerWindow:
+    """Gets the rolling seven-day plan."""
+    return await _window_for(service, user.pk, start)
 
 
 @router.get("/meals", response_model=None)
@@ -228,6 +361,19 @@ async def update_planned_day(
     planned_day = await service.plan_by_meal_name(meal, day, user.pk)
 
     response.headers["HX-Trigger"] = "show-success" if planned_day is not None else "show-error"
+
+
+@router.post("/planned_day/clear", response_model=None)
+@htmy_renderer.page(planned_week_div)
+async def clear_planned_day(
+    day: t.Annotated[date, Form()],
+    start: t.Annotated[date, Query()],
+    service: PlanServiceDep,
+    user: CurrentUser,
+) -> PlannerWindow:
+    """Clear the plan for a day and re-render the viewed window."""
+    await service.clear(day, user.pk)
+    return await _window_for(service, user.pk, start)
 
 
 @router.get("/summary", response_model=None)
