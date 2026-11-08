@@ -853,6 +853,9 @@ summary table's counts.
 
 ### 3. Planner navigation and day controls — P1
 
+**Planned:** see `PLAN.md` for the week model, route/API contract, UI markup, and task
+breakdown.
+
 `src/meals/web/planner.py` always renders the seven days starting from today with no way
 to look at another week or clear a day. Add previous/next week navigation (and a "jump to
 today"), highlight the current day, and allow clearing/removing a planned meal. While
