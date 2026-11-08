@@ -521,7 +521,7 @@ setup (`uv sync`, `just migrate`, `just start`), environment configuration (`DAT
 `LOG_LEVEL`, and which commands load `.env`), the lint/type-check/test commands and the
 100%-coverage rule, migrations, deployment and rollback, backups and restore, logging, and the
 placeholder authentication, linking to `deploy/README.md` for the full procedures. The CDN
-assets in `src/meals/web/core.py` are pinned to exact versions (Tailwind `3.4.19`, HTMX
+assets in `src/meals/web/core.py` are pinned to exact versions (Tailwind `3.4.17`, HTMX
 `2.0.2` with the explicit `dist/htmx.min.js` path, Alpine `3.17.5` with `dist/cdn.min.js`)
 instead of Alpine's floating `3.x.x` and the unpinned Tailwind Play CDN; the web snapshots
 were updated (only the three `src` attributes changed), and
@@ -839,17 +839,15 @@ forms use an autocomplete chip input; labels render on recipe cards; the recipe 
 summary table can be filtered from the UI and by repeated `labels` query parameters;
 `GET /api/v1/labels` exposes the taxonomy; and `meals-seed` sends labels from `recipes.yaml`.
 Multi-label filters use OR within a category and AND across categories. Filtering the
-planner's meal picker and planned-week table remains future work (see `PLAN.md`, "Later
-planner work").
+planner's meal picker and planned-week table remains future work.
 
 ### 2. Additional (non-recipe) meals — P1
 
-`PLAN.md` calls for "ability to add additional meals that are not recipes" so things like
-"Take Away" can be planned without a recipe or ingredients. Today this is faked by creating
-recipes with no ingredients/instructions, which also makes them appear in recipe lists
-(and as an empty card). Introduce a first-class concept for these (a flag or separate
-table), support creating them from the planner, and make sure they still appear in the
-summary table's counts.
+The planner should support additional meals that are not recipes, so things like "Take Away"
+can be planned without a recipe or ingredients. Today this is faked by creating recipes with
+no ingredients/instructions, which also makes them appear in recipe lists (and as an empty
+card). Introduce a first-class concept for these (a flag or separate table), support creating
+them from the planner, and make sure they still appear in the summary table's counts.
 
 ### 3. Planner navigation and day controls — P1 (done)
 

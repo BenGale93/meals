@@ -132,6 +132,7 @@ class PlanService:
     async def week(self, user_pk: int, start: date | None = None) -> PlannedDays:
         """Return the seven day plan starting on ``start`` (today by default)."""
         first_day = start or date.today()
+        # get_range is inclusive on both ends, so the seventh day is start + 6.
         raw_plan = await self._plan_repo.get_range(first_day, first_day + timedelta(days=6), user_pk)
 
         days_to_plan: list[DayToPlan] = []

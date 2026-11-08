@@ -75,9 +75,16 @@ changing `src/meals/database/models.py`, generate a migration with
 with `just migrate`.
 
 Front-end assets in `src/meals/web/core.py` are pinned to exact CDN versions (Tailwind
-3.4.19, HTMX 2.0.2, Alpine 3.17.5) so a CDN release cannot silently change the page. There is
+3.4.17, HTMX 2.0.2, Alpine 3.17.5) so a CDN release cannot silently change the page. There is
 no vendored asset build; if CDN access ever becomes a problem, vendor those three files and
 serve them from `FastAPI` instead.
+
+## Design decisions
+
+Architecture decisions are recorded as [ADRs](docs/adr/README.md), including the planner
+window and URL contract and the server-rendered HTMX UI pattern. Read the relevant ADR before
+changing a documented area, and add a new one when a decision is durable, surprising, or
+expensive to reverse.
 
 ## Seeding and CLI helpers
 

@@ -416,7 +416,7 @@ class PlanRepository:
             await self.session.flush()
 
     async def get_range(self, start_date: date, end_date: date, user_pk: int) -> list[StoredPlannedDay]:
-        """Get the meal plans between the two dates."""
+        """Get the meal plans between the two dates, inclusive of both ends."""
         stmt = (
             select(StoredPlannedDay)
             .filter(StoredPlannedDay.day.between(start_date, end_date), StoredPlannedDay.user_pk == user_pk)
