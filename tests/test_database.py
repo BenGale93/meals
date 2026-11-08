@@ -1,8 +1,9 @@
 import datetime as dt
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import event, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -27,7 +28,33 @@ from meals.schemas import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from sqlalchemy.engine import Engine
     from sqlalchemy.ext.asyncio import AsyncSession
+
+
+@contextmanager
+def capture_selects(engine: Engine) -> Iterator[list[str]]:
+    """Record the SELECT statements issued against an engine."""
+    statements: list[str] = []
+
+    def before_cursor_execute(
+        _conn: object,
+        _cursor: object,
+        statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: object,
+    ) -> None:
+        if statement.lstrip().upper().startswith("SELECT"):
+            statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", before_cursor_execute)
+    try:
+        yield statements
+    finally:
+        event.remove(engine, "before_cursor_execute", before_cursor_execute)
 
 
 async def test_get_db_commits_when_the_request_finishes(monkeypatch, tmp_path):
@@ -166,6 +193,43 @@ async def test_queries_eager_load_serialised_relationships(db_session: AsyncSess
     db_session.expunge_all()
     responses = [PlannedDayResponse.model_validate(stored) for stored in stored_plans]
     assert [response.recipe for response in responses] == [PlannedRecipe(pk=recipe.pk, name=recipe.name)]
+
+
+async def test_recipe_queries_use_selectin_eager_loads(db_engine, db_session: AsyncSession, sausage_recipe):
+    """Recipe responses load each tree with selectin queries, not lazy loads."""
+    user = await UserRepository(db_session).create(CreateUserRequest(user_name="User One"))
+    recipe = await RecipeRepository(db_session).create(sausage_recipe, user.pk)
+    recipe_pk = recipe.pk
+    db_session.expunge_all()
+
+    with capture_selects(db_engine.sync_engine) as selects:
+        stored = await RecipeRepository(db_session).get(recipe_pk, user.pk)
+        assert stored is not None
+        response = RecipeResponse.model_validate(stored)
+
+    # One query for the recipe, one for ingredients, one for labels/sub-categories/categories.
+    assert len(selects) == 3
+    assert [ingredient.name for ingredient in response.ingredients] == ["Sausage"]
+    assert {str(label) for label in response.labels} == {"meat::pork", "time::slow"}
+
+
+async def test_plan_queries_do_not_load_unused_recipe_relationships(db_engine, db_session, sausage_recipe):
+    """Plans only fetch the recipe pk and name their response model reads."""
+    user = await UserRepository(db_session).create(CreateUserRequest(user_name="User One"))
+    recipe = await RecipeRepository(db_session).create(sausage_recipe, user.pk)
+    recipe_pk = recipe.pk
+    day = dt.date(2025, 1, 1)
+    await PlanRepository(db_session).update(
+        PlannedDay(day=day, recipe=PlannedRecipe(pk=recipe_pk, name=sausage_recipe.name)), user.pk
+    )
+    db_session.expunge_all()
+
+    with capture_selects(db_engine.sync_engine) as selects:
+        plans = await PlanRepository(db_session).get_range(day, day, user.pk)
+        response = PlannedDayResponse.model_validate(plans[0])
+
+    assert len(selects) == 1
+    assert response.recipe == PlannedRecipe(pk=recipe_pk, name=sausage_recipe.name)
 
 
 async def test_deleting_a_recipe_cascades_to_recipe_labels(db_session: AsyncSession, carrots_recipe):

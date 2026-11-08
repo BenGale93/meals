@@ -6,7 +6,7 @@ from datetime import date
 from fastapi import Depends
 from sqlalchemy import distinct, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, raiseload, selectinload
 
 from meals.database.models import (
     Category,
@@ -48,11 +48,15 @@ if t.TYPE_CHECKING:
 # `RecipeResponse` serialises recipe.ingredients and each row's ingredient, plus
 # recipe.labels and each label's sub-category and category.
 RECIPE_LOAD_OPTIONS = (
-    joinedload(StoredRecipe.ingredients).subqueryload(RecipeIngredient.ingredient),
-    joinedload(StoredRecipe.labels).subqueryload(StoredRecipeLabel.sub_category).subqueryload(SubCategory.category),
+    selectinload(StoredRecipe.ingredients).joinedload(RecipeIngredient.ingredient),
+    selectinload(StoredRecipe.labels).joinedload(StoredRecipeLabel.sub_category).joinedload(SubCategory.category),
 )
-# `PlannedDayResponse` serialises planned.recipe.
-PLANNED_DAY_LOAD_OPTIONS = (joinedload(StoredPlannedDay.recipe),)
+# `PlannedDayResponse` serialises planned.recipe, but `PlannedRecipe` only uses its pk
+# and name. `raiseload("*")` suppresses the model-level selectin loading on the recipe's
+# relationships, so a plan query does not drag in ingredients and labels it never reads.
+PLANNED_DAY_LOAD_OPTIONS = (
+    joinedload(StoredPlannedDay.recipe).options(raiseload("*")).load_only(StoredRecipe.pk, StoredRecipe.name),
+)
 
 
 def _matching_recipe_pks(label_filter: LabelFilter) -> Select[int]:
@@ -239,7 +243,7 @@ class RecipeRepository:
             stmt = stmt.where(StoredRecipe.pk.in_(_matching_recipe_pks(label_filter)))
         stmt_result = await self.session.scalars(stmt)
 
-        recipes = list(stmt_result.unique().fetchall())
+        recipes = list(stmt_result.fetchall())
 
         if has_ingredients:
             return [r for r in recipes if len(r.ingredients) > 0]
@@ -311,7 +315,7 @@ class RecipeRepository:
         )
         stmt_result = await self.session.scalars(stmt)
 
-        return list(stmt_result.unique().fetchall())
+        return list(stmt_result.fetchall())
 
 
 def get_recipe_repo(session: AsyncSession = Depends(get_db)) -> RecipeRepository:  # noqa: B008

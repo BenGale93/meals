@@ -118,6 +118,7 @@ automatically); do not treat an old backup as permanently done.
 | Arch 8 — brittle full-page snapshots | P2 |
 | Arch 9 — coverage pragmas hide gaps | P2 |
 | Arch 10 — split large test modules by domain | P3 |
+| Arch 11 — explicit relationship loading with `raise_on_sql` | P2 |
 | Features 1–9 | see each item |
 
 ---
@@ -823,6 +824,21 @@ contract level rather than executed.
 transport. Split by domain (recipes, users, timings, planner) as the app grows; the
 `feat/labels` restructure into `tests/api_tests/` is a starting point. Also add coverage for
 the timings Alpine/JS behaviour, which is currently untested.
+
+### 11. Make relationship loading explicit with `lazy="raise_on_sql"` — P2
+
+`StoredRecipe.ingredients`, `StoredIngredient.recipes`, and `RecipeIngredient.recipe` and
+`ingredient` still use `lazy="selectin"`, so the mapper can issue queries the repository did
+not ask for. `PLANNED_DAY_LOAD_OPTIONS` now suppresses that with `raiseload("*")`, but any new
+query that loads a recipe can still pay for ingredients it never serialises.
+
+Change these relationships (and the other unused back-references) to `lazy="raise_on_sql"` so
+an unloaded relationship access fails loudly instead of silently issuing SQL. The
+recipe-owned collections already have database-level `ON DELETE CASCADE` on their foreign
+keys, so add `passive_deletes=True` to their relationships (matching
+`StoredRecipe.planned`) to let SQLite delete the rows without loading the collections in
+Python. Run the full suite and the query-count tests afterwards, and add explicit loads
+anywhere the change exposes an implicit one.
 
 ---
 
