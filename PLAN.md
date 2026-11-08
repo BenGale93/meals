@@ -388,9 +388,9 @@ even with the old eight-day query.
       date labels, and the clear route. Update the existing page/fragment tests.
 - [x] **M4 - Clear UI.** Add the conditional Clear button and panel swap; cover planned and
       empty rows, idempotent clears, user scoping, and preserving the viewed window.
-- [ ] **M5 - Verification.** Run `just`; click through in a browser (or headless) to confirm
-      HTMX pushes `/plan.html?start=...`, back/forward restores a window, and Clear empties
-      the row; update `TODO.md` and mark item 3 done.
+- [x] **M5 - Verification.** `just` is green; browser click-through confirmed HTMX pushes
+      `/plan.html?start=...`, back/forward restores a window, Clear empties the row, and a
+      newly planned meal shows its Clear button immediately. `TODO.md` marks item 3 done.
 
 ## Acceptance criteria
 

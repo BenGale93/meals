@@ -851,16 +851,17 @@ recipes with no ingredients/instructions, which also makes them appear in recipe
 table), support creating them from the planner, and make sure they still appear in the
 summary table's counts.
 
-### 3. Planner navigation and day controls — P1
+### 3. Planner navigation and day controls — P1 (done)
 
-**Planned:** see `PLAN.md` for the week model, route/API contract, UI markup, and task
-breakdown.
-
-`src/meals/web/planner.py` always renders the seven days starting from today with no way
-to look at another week or clear a day. Add previous/next week navigation (and a "jump to
-today"), highlight the current day, and allow clearing/removing a planned meal. While
-there, fix the off-by-one where `weeks_plan` calls `repo.get_range(today, today + 7)`
-(inclusive) but only renders seven days.
+**Done:** the planner now shows a rolling seven-day window starting today (or an exact
+`?start=` date) instead of a fixed view. Previous 7 days / Today / Next 7 days navigation
+updates the URL through HTMX while still working as ordinary links, and today's row is
+highlighted and labelled. Rows show the weekday and date. Update re-renders the viewed
+window so a newly planned meal's Clear button appears immediately; Clear removes the plan
+and re-renders the same window. Failed updates use `HX-Reswap: none` so typed text stays in
+place. `PlanService.week` now queries `start..start + 6`, fixing the off-by-one, and
+`DELETE /api/v1/planned_day` provides idempotent, user-scoped clearing. Covered by service,
+API, and web tests at 100% branch coverage; no migration was needed.
 
 ### 4. Shopping list for the planned week — P2
 
