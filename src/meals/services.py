@@ -129,14 +129,14 @@ class PlanService:
             return None
         return await self.plan(PlannedDay(day=day, recipe=PlannedRecipe(pk=recipe.pk, name=recipe.name)), user_pk)
 
-    async def week(self, user_pk: int) -> PlannedDays:
-        """Return the seven day plan starting today."""
-        today = date.today()
-        raw_plan = await self._plan_repo.get_range(today, today + timedelta(days=7), user_pk)
+    async def week(self, user_pk: int, start: date | None = None) -> PlannedDays:
+        """Return the seven day plan starting on ``start`` (today by default)."""
+        first_day = start or date.today()
+        raw_plan = await self._plan_repo.get_range(first_day, first_day + timedelta(days=6), user_pk)
 
         days_to_plan: list[DayToPlan] = []
         for i in range(7):
-            day = today + timedelta(days=i)
+            day = first_day + timedelta(days=i)
             planned_day = DayToPlan(day=day, recipe=None)
             for raw_day in raw_plan:
                 if day != raw_day.day:
@@ -146,6 +146,10 @@ class PlanService:
             days_to_plan.append(planned_day)
 
         return PlannedDays(days_to_plan)
+
+    async def clear(self, day: date, user_pk: int) -> None:
+        """Remove the user's plan for a day, if there is one."""
+        await self._plan_repo.clear(day, user_pk)
 
 
 def get_plan_service(plan_repo: PlanRepo, recipe_repo: RecipeRepo) -> PlanService:

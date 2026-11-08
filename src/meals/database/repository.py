@@ -404,6 +404,17 @@ class PlanRepository:
         refreshed_plan = await self.session.scalars(stmt)
         return refreshed_plan.one()
 
+    async def clear(self, day: date, user_pk: int) -> None:
+        """Remove the user's plan for a day, if there is one."""
+        stmt = select(StoredPlannedDay).filter_by(day=day, user_pk=user_pk).limit(1)
+
+        stmt_result = await self.session.scalars(stmt)
+        planned = stmt_result.first()
+
+        if planned is not None:
+            await self.session.delete(planned)
+            await self.session.flush()
+
     async def get_range(self, start_date: date, end_date: date, user_pk: int) -> list[StoredPlannedDay]:
         """Get the meal plans between the two dates."""
         stmt = (

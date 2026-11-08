@@ -162,6 +162,12 @@ async def get_plans(
     return await service.get_range(start_date, end_date, user.pk)
 
 
+@router.delete("/planned_day", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_planned_day(day: date, service: PlanServiceDep, user: CurrentUser) -> None:
+    """Remove the plan for a day, if there is one."""
+    await service.clear(day, user.pk)
+
+
 @router.get("/planned_day/summary/", status_code=status.HTTP_200_OK)
 async def plan_summary(
     service: PlanServiceDep, user: CurrentUser, label_filter: LabelFilterDep

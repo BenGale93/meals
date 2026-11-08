@@ -138,6 +138,57 @@ class TestPlannedDayAPI:
             ]
         )
 
+    async def test_clear_planned_day(self, client: AsyncClient, carrots_recipe):
+        recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        recipe = PlannedRecipe.model_validate(recipe_response.json())
+        day = dt.date(2025, 1, 1)
+        await client.post("/api/v1/planned_day", json=PlannedDay(day=day, recipe=recipe).model_dump())
+
+        response = await client.delete("/api/v1/planned_day", params={"day": day.isoformat()})
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert response.content == b""
+
+        check = await client.get(
+            "/api/v1/planned_day", params={"start_date": day.isoformat(), "end_date": day.isoformat()}
+        )
+        assert check.json() == []
+
+    async def test_clear_unplanned_day_is_idempotent(self, client: AsyncClient):
+        day = dt.date(2025, 1, 1)
+
+        first = await client.delete("/api/v1/planned_day", params={"day": day.isoformat()})
+        second = await client.delete("/api/v1/planned_day", params={"day": day.isoformat()})
+
+        assert first.status_code == status.HTTP_204_NO_CONTENT
+        assert second.status_code == status.HTTP_204_NO_CONTENT
+
+    async def test_clear_does_not_remove_another_users_plan(
+        self, client: AsyncClient, user_two_client: AsyncClient, carrots_recipe
+    ):
+        recipe_response = await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        recipe = PlannedRecipe.model_validate(recipe_response.json())
+        day = dt.date(2025, 1, 1)
+        await client.post("/api/v1/planned_day", json=PlannedDay(day=day, recipe=recipe).model_dump())
+
+        response = await user_two_client.delete("/api/v1/planned_day", params={"day": day.isoformat()})
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+        check = await client.get(
+            "/api/v1/planned_day", params={"start_date": day.isoformat(), "end_date": day.isoformat()}
+        )
+        assert len(check.json()) == 1
+
+    async def test_clear_planned_day_requires_day(self, client: AsyncClient):
+        response = await client.delete("/api/v1/planned_day")
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    async def test_clear_planned_day_requires_auth(self, bad_client: AsyncClient):
+        response = await bad_client.delete("/api/v1/planned_day", params={"day": "2025-01-01"})
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
     @time_machine.travel(dt.date(2025, 1, 1))
     async def test_summarise_ignores_other_users_plans(
         self, client: AsyncClient, user_two_client: AsyncClient, db_session, carrots_recipe
