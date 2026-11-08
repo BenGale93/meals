@@ -37,7 +37,7 @@ class TestPlannerAPI:
         response = await client.get("/weeks_plan")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.text.count('hx-post="/planned_day"') == 7
+        assert response.text.count('hx-post="/planned_day?') == 7
         assert response.text.count('aria-current="date"') == 1
         for offset in range(7):
             day = date(2020, 1, 5) + timedelta(days=offset)
@@ -60,7 +60,7 @@ class TestPlannerAPI:
         assert today.strftime("%Y-%m-%d") in response.text
         assert f'value="{today.isoformat()}" name="day"' in response.text
         assert 'value="Carrot Surprise"' in response.text
-        assert response.text.count('hx-post="/planned_day"') == 7
+        assert response.text.count('hx-post="/planned_day?') == 7
 
     async def test_weeks_plan_uses_exact_start_date(self, client: AsyncClient):
         response = await client.get("/weeks_plan", params={"start": "2020-01-01"})
@@ -213,9 +213,16 @@ class TestPlannerAPI:
     async def test_update_planned_day(self, client: AsyncClient, carrots_recipe):
         await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
         today = date.today()
-        response = await client.post("/planned_day", data={"meal": carrots_recipe.name, "day": today.isoformat()})
+        response = await client.post(
+            "/planned_day",
+            params={"start": today.isoformat()},
+            data={"meal": carrots_recipe.name, "day": today.isoformat()},
+        )
         assert response.status_code == status.HTTP_200_OK
         assert response.headers["HX-Trigger"] == "show-success"
+        assert 'id="week-panel"' in response.text
+        assert f'value="{carrots_recipe.name}"' in response.text
+        assert response.text.count('hx-post="/planned_day/clear') == 1
 
     @time_machine.travel(date(2020, 1, 1))
     async def test_update_planned_day_recipe_not_found(self, client: AsyncClient):
@@ -223,6 +230,20 @@ class TestPlannerAPI:
         response = await client.post("/planned_day", data={"meal": "something", "day": today.isoformat()})
         assert response.status_code == status.HTTP_200_OK
         assert response.headers["HX-Trigger"] == "show-error"
+        assert response.headers["HX-Reswap"] == "none"
+
+    async def test_update_planned_day_keeps_viewed_window(self, client: AsyncClient, carrots_recipe):
+        await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())
+        response = await client.post(
+            "/planned_day",
+            params={"start": "2020-01-08"},
+            data={"meal": carrots_recipe.name, "day": "2020-01-10"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "08 Jan 2020 - 14 Jan 2020" in response.text
+        assert f'value="{carrots_recipe.name}"' in response.text
+        assert response.text.count('hx-post="/planned_day/clear') == 1
 
     async def test_update_planned_day_invalid_date(self, client: AsyncClient, carrots_recipe):
         await client.post("/api/v1/recipes", json=carrots_recipe.model_dump())

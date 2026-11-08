@@ -96,8 +96,9 @@ def day_plan(meal_for_day: str, i: int, start: date) -> ComponentType:
             "Update",
             type="submit",
             class_="px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition",
-            hx_post="/planned_day",
-            hx_swap="none",
+            hx_post=f"/planned_day?start={start.isoformat()}",
+            hx_target="#week-panel",
+            hx_swap="outerHTML",
             hx_include="closest tr",
         ),
     ]
@@ -350,17 +351,24 @@ async def meals_like(meal: str, service: RecipeServiceDep, user: CurrentUser) ->
 
 
 @router.post("/planned_day", response_model=None)
-async def update_planned_day(
+@htmy_renderer.page(planned_week_div)
+async def update_planned_day(  # noqa: PLR0913, PLR0917
     response: Response,
     day: t.Annotated[date, Form()],
     service: PlanServiceDep,
     user: CurrentUser,
+    start: t.Annotated[date | None, Query()] = None,
     meal: t.Annotated[str, Form()] = "",
-) -> None:
-    """Return meals like the string provided."""
+) -> PlannerWindow:
+    """Plan a meal and re-render the viewed window."""
     planned_day = await service.plan_by_meal_name(meal, day, user.pk)
+    if planned_day is None:
+        response.headers["HX-Trigger"] = "show-error"
+        response.headers["HX-Reswap"] = "none"
+    else:
+        response.headers["HX-Trigger"] = "show-success"
 
-    response.headers["HX-Trigger"] = "show-success" if planned_day is not None else "show-error"
+    return await _window_for(service, user.pk, start)
 
 
 @router.post("/planned_day/clear", response_model=None)

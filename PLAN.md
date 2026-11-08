@@ -76,6 +76,7 @@ No database migration, new dependency, or schema change is required.
 | Page rendering | `GET /plan.html` renders the window server-side (no first-load XHR placeholder) |
 | Highlight | Today's row gets `aria-current="date"`, a "Today" badge, and a tinted background when visible |
 | Clear action | Explicit `POST /planned_day/clear`; an empty meal on Update remains an error |
+| Update result | Re-render the viewed window so a newly planned meal shows its Clear button immediately; failed updates keep the row via `HX-Reswap: none` |
 | Clear result | Idempotent, and re-renders the window the user was viewing |
 | API parity | `DELETE /api/v1/planned_day?day=...` with `204 No Content`, always idempotent |
 | Off-by-one | Keep `get_range` inclusive and pass `start + 6`; test the requested range |
@@ -274,9 +275,13 @@ Each row keeps the existing hidden `day` input and meal input so the Update butt
   applies and avoids a request that can never do anything.
 - `hx-include="closest tr"` submits the hidden `day`; the meal input is also included but
   ignored by the clear route.
-- The existing Update button keeps `hx-swap="none"` and the `show-success`/`show-error`
-  triggers. Changing update to re-render the whole panel is out of scope and would make the
-  existing button feedback script point at a destroyed element.
+- The Update button targets `#week-panel`, swaps `outerHTML`, and includes the viewed
+  window start (`hx-post="/planned_day?start=<window start>"`). The response re-renders the
+  whole panel so the newly planned meal immediately gains its Clear button without a week
+  round-trip. The route keeps the existing `show-success` trigger.
+- On an unknown recipe, the route returns the unchanged panel with `HX-Reswap: none` and
+  the `show-error` trigger, so the user's typed text and the current row stay in place
+  instead of being replaced by a stale render.
 
 ### Page function
 
@@ -303,8 +308,8 @@ component to define.
 | Today outside the viewed window | No highlighted row, Today control is a link |
 | Window starts today | Today highlighted; Today control disabled |
 | Today inside the window but not first | Today highlighted; Today control is an enabled link back to today-at-top |
-| Update with a valid recipe | Existing behaviour and success trigger |
-| Update with an unknown recipe | Existing behaviour and error trigger |
+| Update with a valid recipe | Plan saved, viewed window re-rendered, meal and Clear button visible immediately |
+| Update with an unknown recipe | Error trigger, `HX-Reswap: none`, typed text and row left in place |
 | Clear a planned day | Plan row removed, the same window re-rendered with that day empty |
 | Clear an unplanned day | 200 for the web route / 204 for the API; no state change |
 | Clear another user's day | Their plan is untouched; the caller's is cleared/no-op |
@@ -331,6 +336,9 @@ Follow the existing layout; no new modules are expected.
 - A plan made in a future window appears when that window is requested and is absent from
   the current window (no leakage across windows).
 - Invalid `start` returns 422 for both `/plan.html` and `/weeks_plan`.
+- Update with a valid recipe returns the re-rendered panel containing the meal and a Clear
+  button in the same response; a failed update sends `HX-Reswap: none`, so the typed row is
+  not replaced.
 - Clear: plan a meal, POST `/planned_day/clear?start=<viewed start>` with the day, assert
   the response is the refreshed panel, the first row is still the viewed start, the meal
   input is empty, and the Clear button is gone.
