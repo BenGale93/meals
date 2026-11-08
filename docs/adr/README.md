@@ -54,6 +54,7 @@ history. Keep the old file and update its status.
 | [0002](0002-server-rendered-ui-and-htmx-navigation.md) | Use server-rendered HTML with HTMX navigation | Accepted |
 | [0003](0003-layered-architecture-and-import-contracts.md) | Enforce a layered architecture with import-linter | Accepted |
 | [0004](0004-pydantic-schema-boundary-and-eager-loading.md) | Use Pydantic schemas as the boundary and eager-load response relationships | Accepted |
+| [0005](0005-async-repositories-and-service-layer.md) | Use async repositories and a shared service layer | Accepted |
 
 ## Backlog
 
@@ -62,7 +63,6 @@ codebase, roughly in the order it is worth recording them.
 
 | Candidate | Why it matters |
 | --- | --- |
-| Async SQLAlchemy repositories and service layer | Documents the repository/session pattern, dependency injection, and why the API and web layers share use cases. |
 | API action conventions | Records user scoping, idempotent destructive operations, and web/JSON API parity once there are enough endpoints to justify a general rule. |
 | SQLite, Alembic ownership, and backup/release strategy | Captures the single-file database, no `create_all`, stamped legacy schema, and verified-backup rules. |
 | Placeholder Basic auth and the trust boundary | Records that passwords are deliberately unchecked and why that is acceptable only on the Tailscale-only, single-user deployment. |
