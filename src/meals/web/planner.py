@@ -133,7 +133,7 @@ def today_control(window: PlannerWindow) -> ComponentType:
         hx_get=f"/weeks_plan?start={window.today.isoformat()}",
         hx_target="#week-panel",
         hx_swap="outerHTML",
-        hx_push_url="true",
+        hx_push_url="/plan.html",
         class_="px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition",
     )
 
@@ -150,7 +150,7 @@ def window_nav(window: PlannerWindow) -> ComponentType:
             hx_get=f"/weeks_plan?start={previous.isoformat()}",
             hx_target="#week-panel",
             hx_swap="outerHTML",
-            hx_push_url="true",
+            hx_push_url=f"/plan.html?start={previous.isoformat()}",
             class_=link_class,
         ),
         today_control(window),
@@ -160,7 +160,7 @@ def window_nav(window: PlannerWindow) -> ComponentType:
             hx_get=f"/weeks_plan?start={next_.isoformat()}",
             hx_target="#week-panel",
             hx_swap="outerHTML",
-            hx_push_url="true",
+            hx_push_url=f"/plan.html?start={next_.isoformat()}",
             class_=link_class,
         ),
         class_="flex flex-wrap items-center gap-2",

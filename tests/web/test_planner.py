@@ -82,7 +82,9 @@ class TestPlannerAPI:
         assert 'hx-get="/weeks_plan?start=2020-01-08"' in response.text
         assert 'hx-target="#week-panel"' in response.text
         assert 'hx-swap="outerHTML"' in response.text
-        assert 'hx-push-url="true"' in response.text
+        assert 'hx-push-url="/plan.html?start=2019-12-25"' in response.text
+        assert 'hx-push-url="/plan.html?start=2020-01-08"' in response.text
+        assert 'hx-push-url="true"' not in response.text
         assert 'aria-disabled="true"' in response.text
 
     @time_machine.travel(date(2020, 1, 1))
@@ -92,6 +94,7 @@ class TestPlannerAPI:
         assert response.status_code == status.HTTP_200_OK
         assert 'href="/plan.html"' in response.text
         assert 'hx-get="/weeks_plan?start=2020-01-01"' in response.text
+        assert 'hx-push-url="/plan.html"' in response.text
         assert 'aria-disabled="true"' not in response.text
         assert response.text.count('aria-current="date"') == 1
 
