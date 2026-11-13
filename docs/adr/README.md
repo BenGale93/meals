@@ -60,13 +60,9 @@ history. Keep the old file and update its status.
 | [0008](0008-placeholder-basic-auth-and-trust-boundary.md) | Use placeholder Basic auth behind a private network boundary | Accepted |
 | [0009](0009-structured-logging-request-ids-and-error-responses.md) | Use structured JSON logs and request-scoped error responses | Accepted |
 | [0010](0010-testing-strategy-and-branch-coverage.md) | Test against real SQLite and gate on 100% branch coverage | Accepted |
+| [0011](0011-operational-cli-helpers.md) | Send seed and plan helpers through the running API | Accepted |
 
 ## Backlog
 
-These are not written yet. They are the highest-value decisions still implicit in the
-codebase, roughly in the order it is worth recording them.
-
-| Candidate | Why it matters |
-| --- | --- |
-| Label model and filter semantics | Records the normalised category/sub-category/recipe-label tables and the OR-within-category, AND-across-category rule. |
-| Operational CLI helpers | Explains why seeding and meal planning call the running API while the backup helper works directly on SQLite. |
+No candidates are currently recorded. Add one here when a durable decision is worth
+recording but does not have an ADR yet.
