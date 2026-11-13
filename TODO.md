@@ -6,8 +6,8 @@ relevant files and the expected outcome rather than prescribing every line.
 
 ## Deployment context
 
-This app is self-hosted by a **single user** on a **Raspberry Pi**, reachable only over a
-**Tailscale tailnet** (not the public internet). That changes priorities:
+This app is self-hosted by a **single user** on a **Raspberry Pi**, reachable over the home
+**LAN** or a **Tailscale tailnet** (not the public internet). That changes priorities:
 
 - **Multi-user** and **authenticated-impersonation** issues are *latent* — they cannot be
   triggered today, but they will bite if a second user is ever added or if anything on the
@@ -211,22 +211,23 @@ repository/route (404/403 on mismatch) and also scope `PlanRepository.summarise`
 
 **Fixed (documentation only):** `README.md` now has an Authentication section stating that the
 password is a placeholder and only the username is checked, and `get_current_user`'s docstring
-says the same. No hashing or session flow was added for this single-user, Tailscale-only app.
+says the same. No hashing or session flow was added for this single-user, home-LAN/Tailscale app.
 
 `src/meals/auth.py` only looks the user up by `credentials.username` and ignores
 `credentials.password`; `CreateUserRequest` has no password field and `auth_headers()`
 hardcodes the password `"test"`. Any client on the tailnet can authenticate as the
 account with an arbitrary password.
 
-Because the app is single-user and only reachable over Tailscale, this is **not** an
-urgent exposure — Tailscale already provides transport encryption and access control, and
-no password ever needs to leave the tailnet. Treat it as hardening / future-proofing:
+Because the app is single-user and reachable only over the home LAN or Tailscale, this is
+**not** an urgent exposure — Tailscale provides transport encryption and access control for
+remote use, and no password ever needs to leave the tailnet. Treat it as hardening /
+future-proofing:
 
 - At minimum, document that auth is a placeholder in `README.md` so it isn't mistaken for
   real security.
 - If you add a password at all, hash it (Argon2/bcrypt) and verify it in
   `get_current_user`; never return the hash in `UserResponse`.
-- A full signup/login/logout flow is likely overkill for a single-user Tailscale app;
+- A full signup/login/logout flow is likely overkill for a single-user LAN/Tailscale app;
   a long-lived signed session cookie (so the browser stops re-prompting for Basic auth)
   is probably the sweet spot.
 
@@ -906,7 +907,7 @@ benefit from tests (the JS behaviour is currently untested).
 
 ### 8. Authentication improvements — P3
 
-Beyond the hardening in bug 5, this is optional given the Tailscale-only, single-user
+Beyond the hardening in bug 5, this is optional given the home-LAN/Tailscale, single-user
 setup. If it becomes useful (e.g. session persistence so the browser stops re-prompting,
 or a second household device), prefer a lightweight signed session cookie over a full
 signup/login system. If you do add UI, make the page routes consistently require auth (bug
