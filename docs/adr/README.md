@@ -58,6 +58,7 @@ history. Keep the old file and update its status.
 | [0006](0006-user-scoped-idempotent-api-actions.md) | Define user-scoped, idempotent API actions | Accepted |
 | [0007](0007-sqlite-alembic-and-backup-first-releases.md) | Run SQLite with an Alembic-managed schema and backup-first releases | Accepted |
 | [0008](0008-placeholder-basic-auth-and-trust-boundary.md) | Use placeholder Basic auth behind a private network boundary | Accepted |
+| [0009](0009-structured-logging-request-ids-and-error-responses.md) | Use structured JSON logs and request-scoped error responses | Accepted |
 
 ## Backlog
 
@@ -66,7 +67,6 @@ codebase, roughly in the order it is worth recording them.
 
 | Candidate | Why it matters |
 | --- | --- |
-| Structured logging, request IDs, and error responses | Explains the JSON log contract, `X-Request-ID`, and why API and page errors have different response shapes. |
 | Testing strategy and the 100% branch-coverage gate | Documents the per-test transaction, savepoint override, inline snapshots, randomised order, and when browser testing is required. |
 | Label model and filter semantics | Records the normalised category/sub-category/recipe-label tables and the OR-within-category, AND-across-category rule. |
 | Operational CLI helpers | Explains why seeding and meal planning call the running API while the backup helper works directly on SQLite. |
